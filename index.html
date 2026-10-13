@@ -1,0 +1,2746 @@
+<!DOCTYPE html>
+<html lang="ms">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>KUIZ AR WEBCAM - Pertarungan Pantas Real-Time</title>
+  
+  <!-- Google Fonts & Font Awesome -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Plus+Jakarta+Sans:wght@400;600;800&display=swap" rel="stylesheet">
+  
+  <!-- MediaPipe Hands & Camera Utils -->
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+  
+  <!-- Firebase App & Realtime Database (Compat) -->
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+
+  <style>
+    :root {
+      --primary: #00f2fe;
+      --secondary: #4facfe;
+      --accent-red: #ff2a6d;
+      --accent-green: #05ffa1;
+      --accent-yellow: #ffe600;
+      --bg-dark: #0a0d18;
+      --card-bg: rgba(16, 23, 42, 0.85);
+      --border-glow: rgba(0, 242, 254, 0.4);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+    }
+
+    body {
+      background: var(--bg-dark);
+      color: #fff;
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      min-height: 100vh;
+      overflow-x: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* Header Nav */
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 12px 24px;
+      background: rgba(10, 13, 24, 0.95);
+      border-bottom: 1px solid var(--border-glow);
+      backdrop-filter: blur(10px);
+      z-index: 50;
+    }
+
+    .brand {
+      font-family: 'Orbitron', sans-serif;
+      font-size: 1.25rem;
+      font-weight: 900;
+      letter-spacing: 2px;
+      color: var(--primary);
+      text-shadow: 0 0 12px var(--primary);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .header-info {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .room-badge {
+      background: rgba(0, 242, 254, 0.15);
+      border: 1px solid var(--primary);
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-family: 'Orbitron', sans-serif;
+      font-size: 0.85rem;
+      color: var(--primary);
+    }
+
+    .btn-config {
+      background: #1e293b;
+      border: 1px solid #475569;
+      color: #cbd5e1;
+      padding: 6px 14px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 0.85rem;
+      transition: all 0.2s;
+    }
+    .btn-config:hover {
+      background: #334155;
+      color: #fff;
+    }
+
+    /* Main Container */
+    main {
+      flex: 1;
+      display: flex;
+      position: relative;
+    }
+
+    /* Lobby Overlay */
+    #lobby-screen {
+      position: fixed;
+      inset: 0;
+      background: radial-gradient(circle at center, #111827 0%, #030712 100%);
+      z-index: 100;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      overflow-y: auto;
+    }
+
+    .lobby-card {
+      background: var(--card-bg);
+      border: 1px solid var(--border-glow);
+      box-shadow: 0 0 30px rgba(0, 242, 254, 0.2);
+      border-radius: 20px;
+      padding: 30px;
+      width: 100%;
+      max-width: 620px;
+      text-align: center;
+      backdrop-filter: blur(15px);
+      margin: auto;
+    }
+
+    .lobby-title {
+      font-family: 'Orbitron', sans-serif;
+      font-size: 1.8rem;
+      font-weight: 900;
+      margin-bottom: 8px;
+      background: linear-gradient(135deg, #00f2fe, #4facfe, #05ffa1);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .lobby-subtitle {
+      color: #94a3b8;
+      font-size: 0.9rem;
+      margin-bottom: 24px;
+    }
+
+    .input-group {
+      text-align: left;
+      margin-bottom: 16px;
+    }
+
+    .input-group label {
+      display: block;
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: #94a3b8;
+      margin-bottom: 6px;
+      font-weight: 600;
+    }
+
+    .input-control {
+      width: 100%;
+      background: #0f172a;
+      border: 1px solid #334155;
+      color: #fff;
+      padding: 12px 16px;
+      border-radius: 10px;
+      font-size: 1rem;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    .input-control:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 10px rgba(0, 242, 254, 0.3);
+    }
+
+    .role-selector {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 24px;
+    }
+
+    .role-btn {
+      flex: 1;
+      padding: 12px;
+      background: #0f172a;
+      border: 2px solid #334155;
+      border-radius: 10px;
+      color: #cbd5e1;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .role-btn.active {
+      border-color: var(--primary);
+      background: rgba(0, 242, 254, 0.15);
+      color: #fff;
+      box-shadow: 0 0 15px rgba(0, 242, 254, 0.3);
+    }
+
+    .btn-primary {
+      width: 100%;
+      padding: 14px;
+      background: linear-gradient(135deg, #00f2fe, #4facfe);
+      border: none;
+      border-radius: 12px;
+      color: #000;
+      font-family: 'Orbitron', sans-serif;
+      font-size: 1.1rem;
+      font-weight: 900;
+      cursor: pointer;
+      box-shadow: 0 0 20px rgba(0, 242, 254, 0.5);
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+    .btn-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 0 30px rgba(0, 242, 254, 0.8);
+    }
+
+    /* Lobby Navigation Tabs */
+    .lobby-tabs {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 22px;
+      background: #090d16;
+      padding: 6px;
+      border-radius: 14px;
+      border: 1px solid #1e293b;
+    }
+    .lobby-tab-btn {
+      flex: 1;
+      padding: 10px 14px;
+      background: transparent;
+      border: none;
+      color: #94a3b8;
+      font-family: 'Orbitron', sans-serif;
+      font-size: 0.9rem;
+      font-weight: 700;
+      border-radius: 10px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .lobby-tab-btn:hover {
+      color: #fff;
+    }
+    .lobby-tab-btn.active {
+      background: linear-gradient(135deg, rgba(0, 242, 254, 0.2), rgba(79, 172, 254, 0.3));
+      color: var(--primary);
+      border: 1px solid var(--primary);
+      box-shadow: 0 0 14px rgba(0, 242, 254, 0.3);
+    }
+
+    /* 6 BoBoiBoy Team Selector Grid */
+    .team-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 10px;
+      margin-bottom: 6px;
+    }
+    @media (max-width: 500px) {
+      .team-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+    .team-opt-btn {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 11px 12px;
+      background: #0f172a;
+      border: 2px solid #334155;
+      border-radius: 10px;
+      color: #cbd5e1;
+      font-size: 0.85rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.2s;
+      text-align: left;
+    }
+    .team-opt-btn:hover {
+      background: #1e293b;
+      border-color: #64748b;
+      transform: translateY(-2px);
+    }
+    .team-opt-btn.active {
+      border-color: var(--primary) !important;
+      background: rgba(0, 242, 254, 0.18) !important;
+      color: #fff !important;
+      box-shadow: 0 0 14px rgba(0, 242, 254, 0.35);
+    }
+    .team-opt-btn .team-icon {
+      font-size: 1.25rem;
+    }
+
+    /* Teacher Scoreboard Panel in Lobby */
+    .scoreboard-panel {
+      text-align: left;
+    }
+    .sb-filters {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+    .sb-filter-btn {
+      padding: 6px 14px;
+      background: #0f172a;
+      border: 1px solid #334155;
+      color: #94a3b8;
+      border-radius: 20px;
+      font-size: 0.78rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .sb-filter-btn:hover {
+      color: #fff;
+    }
+    .sb-filter-btn.active {
+      background: var(--primary);
+      color: #000;
+      border-color: var(--primary);
+      box-shadow: 0 0 10px rgba(0, 242, 254, 0.4);
+    }
+    .sb-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 18px;
+      font-size: 0.85rem;
+      background: #090d16;
+      border-radius: 10px;
+      overflow: hidden;
+      border: 1px solid #1e293b;
+    }
+    .sb-table th {
+      padding: 9px 12px;
+      color: #94a3b8;
+      background: #0f172a;
+      border-bottom: 1px solid #334155;
+      text-align: left;
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+    .sb-table td {
+      padding: 9px 12px;
+      border-bottom: 1px solid #1e293b;
+      color: #e2e8f0;
+    }
+    .sb-table tr:hover td {
+      background: rgba(255, 255, 255, 0.03);
+    }
+    .sb-rank-badge {
+      font-weight: 800;
+      font-size: 0.95rem;
+    }
+    .sb-history-list {
+      max-height: 180px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-bottom: 16px;
+      padding-right: 4px;
+    }
+    .sb-history-item {
+      background: #090d16;
+      border: 1px solid #1e293b;
+      border-radius: 10px;
+      padding: 9px 12px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.82rem;
+    }
+    .sb-history-item:hover {
+      border-color: var(--primary);
+    }
+
+    /* Review Panel in Lobby */
+    .review-panel {
+      text-align: left;
+    }
+    .review-card-list {
+      max-height: 380px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      margin-bottom: 16px;
+      padding-right: 4px;
+    }
+    .review-card {
+      background: #090d16;
+      border: 1px solid #1e293b;
+      border-radius: 12px;
+      padding: 14px 16px;
+      transition: border-color 0.2s;
+    }
+    .review-card:hover {
+      border-color: #38bdf8;
+    }
+    .review-card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+      font-size: 0.78rem;
+    }
+    .review-q-text {
+      font-size: 0.95rem;
+      font-weight: 700;
+      color: #fff;
+      line-height: 1.4;
+      margin-bottom: 12px;
+    }
+    .review-ans-box {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      font-size: 0.85rem;
+      background: rgba(15, 23, 42, 0.6);
+      padding: 10px 12px;
+      border-radius: 8px;
+      margin-bottom: 10px;
+    }
+    .review-wrong-ans {
+      color: #f87171;
+      display: flex;
+      align-items: flex-start;
+      gap: 6px;
+    }
+    .review-correct-ans {
+      color: #4ade80;
+      font-weight: 700;
+      display: flex;
+      align-items: flex-start;
+      gap: 6px;
+    }
+    .review-all-options {
+      margin-top: 8px;
+      padding-top: 8px;
+      border-top: 1px dashed #334155;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+      font-size: 0.78rem;
+      color: #94a3b8;
+    }
+    .review-opt-item.is-correct {
+      color: #4ade80;
+      font-weight: 700;
+    }
+
+    /* Game Layout */
+    .game-arena {
+      display: flex;
+      flex: 1;
+      width: 100%;
+      height: calc(100vh - 65px);
+      position: relative;
+    }
+
+    /* Left: Webcam & AR Canvas */
+    .camera-pane {
+      flex: 1.2;
+      position: relative;
+      background: #000;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    #webcam-video {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      transform: scaleX(-1); /* Mirror camera */
+    }
+
+    #ar-canvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 10;
+      pointer-events: auto;
+    }
+
+    .camera-status-pill {
+      position: absolute;
+      top: 16px;
+      left: 16px;
+      background: rgba(0, 0, 0, 0.75);
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      border-radius: 20px;
+      padding: 6px 14px;
+      font-size: 0.8rem;
+      z-index: 20;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .live-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--accent-red);
+      animation: pulse 1.5s infinite;
+    }
+
+    @keyframes pulse {
+      0% { opacity: 0.4; }
+      50% { opacity: 1; }
+      100% { opacity: 0.4; }
+    }
+
+    /* Right: Question & Scores Pane */
+    .quiz-pane {
+      flex: 1;
+      background: var(--card-bg);
+      border-left: 1px solid var(--border-glow);
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      backdrop-filter: blur(20px);
+      position: relative;
+      z-index: 15;
+    }
+
+    /* Scoreboard Top */
+    .scoreboard-container {
+      margin-bottom: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .leader-banner {
+      background: linear-gradient(135deg, rgba(255, 215, 0, 0.15), rgba(15, 23, 42, 0.85));
+      border: 1px solid rgba(255, 215, 0, 0.5);
+      border-radius: 12px;
+      padding: 8px 14px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-family: 'Orbitron', sans-serif;
+      font-size: 0.82rem;
+      color: #ffd700;
+      text-shadow: 0 0 8px rgba(255, 215, 0, 0.4);
+      box-shadow: 0 0 15px rgba(255, 215, 0, 0.15);
+    }
+
+    .scoreboard {
+      display: flex;
+      justify-content: space-around;
+      background: rgba(15, 23, 42, 0.8);
+      border: 1px solid #334155;
+      border-radius: 16px;
+      padding: 16px;
+    }
+
+    .player-card {
+      text-align: center;
+      position: relative;
+      flex: 1;
+      padding: 8px;
+      border-radius: 12px;
+      transition: all 0.3s;
+    }
+    .player-card:first-child {
+      border-right: 1px solid #334155;
+    }
+    .player-card.is-leader {
+      background: rgba(255, 215, 0, 0.08);
+      border: 1.5px solid #ffd700;
+      box-shadow: 0 0 20px rgba(255, 215, 0, 0.25);
+    }
+
+    .rank-badge {
+      display: inline-block;
+      padding: 2px 10px;
+      border-radius: 20px;
+      font-family: 'Orbitron', sans-serif;
+      font-size: 0.7rem;
+      font-weight: 800;
+      margin-bottom: 6px;
+      letter-spacing: 1px;
+    }
+    .rank-badge.rank-1 {
+      background: linear-gradient(135deg, #ffd700, #ffaa00);
+      color: #000;
+      box-shadow: 0 0 10px rgba(255, 215, 0, 0.5);
+    }
+    .rank-badge.rank-2 {
+      background: #334155;
+      color: #94a3b8;
+    }
+    .rank-badge.rank-tie {
+      background: rgba(0, 242, 254, 0.2);
+      border: 1px solid var(--primary);
+      color: var(--primary);
+    }
+
+    .player-name {
+      font-size: 0.85rem;
+      color: #94a3b8;
+      font-weight: 700;
+      text-transform: uppercase;
+      margin-bottom: 4px;
+    }
+
+    .player-score {
+      font-family: 'Orbitron', sans-serif;
+      font-size: 2.2rem;
+      font-weight: 900;
+      color: var(--primary);
+      text-shadow: 0 0 10px rgba(0, 242, 254, 0.5);
+    }
+    .player-card.is-leader .player-score {
+      color: #ffd700;
+      text-shadow: 0 0 15px rgba(255, 215, 0, 0.6);
+    }
+    .player-card.is-you::after {
+      content: "(ANDA)";
+      display: block;
+      font-size: 0.7rem;
+      color: var(--accent-yellow);
+      font-weight: 800;
+      margin-top: 2px;
+    }
+
+    /* Question Box */
+    .question-box {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      text-align: center;
+      margin: 10px 0;
+    }
+
+    .q-number {
+      font-family: 'Orbitron', sans-serif;
+      color: var(--secondary);
+      font-size: 1.15rem;
+      letter-spacing: 2px;
+      margin-bottom: 12px;
+      font-weight: 800;
+    }
+
+    .q-text {
+      font-size: 1.75rem;
+      font-weight: 800;
+      line-height: 1.45;
+      color: #fff;
+      margin-bottom: 22px;
+      min-height: 80px;
+      text-shadow: 0 2px 4px rgba(0, 0, 0, 0.4);
+    }
+
+    /* Buzzer Notification Banner */
+    .buzzer-alert {
+      padding: 12px;
+      border-radius: 12px;
+      font-family: 'Orbitron', sans-serif;
+      font-weight: 700;
+      text-align: center;
+      margin-bottom: 16px;
+      letter-spacing: 1px;
+      font-size: 0.95rem;
+      display: none;
+      animation: alertPulse 0.8s infinite alternate;
+    }
+    .buzzer-alert.you-buzzed {
+      display: block;
+      background: rgba(5, 255, 161, 0.2);
+      border: 2px solid var(--accent-green);
+      color: var(--accent-green);
+      box-shadow: 0 0 20px rgba(5, 255, 161, 0.4);
+    }
+    .buzzer-alert.opponent-buzzed {
+      display: block;
+      background: rgba(255, 42, 109, 0.2);
+      border: 2px solid var(--accent-red);
+      color: var(--accent-red);
+      box-shadow: 0 0 20px rgba(255, 42, 109, 0.4);
+    }
+
+    @keyframes alertPulse {
+      from { transform: scale(0.99); }
+      to { transform: scale(1.02); }
+    }
+
+    /* Countdown Timer Widget */
+    .timer-container {
+      display: none;
+      flex-direction: column;
+      gap: 6px;
+      margin-bottom: 16px;
+      background: rgba(15, 23, 42, 0.95);
+      border: 1px solid var(--border-glow);
+      border-radius: 12px;
+      padding: 10px 16px;
+      text-align: center;
+      box-shadow: 0 0 15px rgba(0, 242, 254, 0.2);
+    }
+    .timer-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-family: 'Orbitron', sans-serif;
+      font-size: 0.85rem;
+      color: #cbd5e1;
+    }
+    .timer-countdown {
+      font-family: 'Orbitron', sans-serif;
+      font-size: 1.5rem;
+      font-weight: 900;
+      color: var(--accent-yellow);
+      text-shadow: 0 0 10px var(--accent-yellow);
+    }
+    .timer-bar-wrapper {
+      width: 100%;
+      height: 8px;
+      background: #1e293b;
+      border-radius: 6px;
+      overflow: hidden;
+    }
+    .timer-bar {
+      height: 100%;
+      width: 100%;
+      background: linear-gradient(90deg, #05ffa1, #ffe600, #ff2a6d);
+      transition: width 0.1s linear;
+    }
+    .timer-urgent {
+      color: var(--accent-red) !important;
+      text-shadow: 0 0 15px var(--accent-red) !important;
+      animation: alertPulse 0.3s infinite alternate;
+    }
+
+    /* Answers Grid */
+    .answers-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+      margin-bottom: 18px;
+    }
+
+    .ans-btn {
+      padding: 18px 16px;
+      background: #0f172a;
+      border: 2px solid #334155;
+      border-radius: 14px;
+      color: #f8fafc;
+      font-size: 1.3rem;
+      font-weight: 700;
+      line-height: 1.35;
+      cursor: pointer;
+      text-align: left;
+      transition: all 0.2s;
+      position: relative;
+    }
+    .ans-btn:not(:disabled):hover {
+      background: #1e293b;
+      border-color: var(--primary);
+      transform: translateY(-2px);
+    }
+    .ans-btn:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+    .ans-btn.correct {
+      background: rgba(5, 255, 161, 0.3) !important;
+      border-color: var(--accent-green) !important;
+      color: var(--accent-green) !important;
+    }
+    .ans-btn.wrong {
+      background: rgba(255, 42, 109, 0.3) !important;
+      border-color: var(--accent-red) !important;
+      color: var(--accent-red) !important;
+    }
+
+    /* Host Controls */
+    .host-controls {
+      display: flex;
+      gap: 10px;
+    }
+    .btn-secondary {
+      flex: 1;
+      padding: 12px;
+      background: #1e293b;
+      border: 1px solid #475569;
+      color: #fff;
+      font-weight: 700;
+      border-radius: 10px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .btn-secondary:hover {
+      background: #334155;
+    }
+
+    /* Modal Firebase Config */
+    #config-modal {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.85);
+      z-index: 200;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    .modal-card {
+      background: #0f172a;
+      border: 1px solid var(--border-glow);
+      border-radius: 16px;
+      padding: 24px;
+      width: 100%;
+      max-width: 540px;
+    }
+
+    /* Responsive Mobile */
+    @media (max-width: 900px) {
+      .game-arena {
+        flex-direction: column;
+        height: auto;
+      }
+      .camera-pane {
+        height: 380px;
+        flex: none;
+      }
+      .quiz-pane {
+        border-left: none;
+        border-top: 1px solid var(--border-glow);
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Top Header -->
+  <header>
+    <div class="brand">
+      <span>⚡</span> KUIZ AR WEBCAM
+    </div>
+    <div class="header-info">
+      <div class="room-badge" id="display-room">KELAS: 2 TIRMIZI</div>
+      <button class="btn-config" id="btn-toggle-mode" onclick="togglePlayMode()">🕹️ Mod: Tanpa Kamera</button>
+      <button class="btn-config" id="btn-fullscreen" onclick="toggleFullscreen()">⛶ Skrin Penuh</button>
+      <button class="btn-config" onclick="returnToMainMenu('review')">📖 Ulangkaji Salah</button>
+      <button class="btn-config" onclick="returnToMainMenu('scoreboard')">🏆 Scoreboard</button>
+      <button class="btn-config" onclick="returnToMainMenu('setup')">🏠 Menu</button>
+      <button class="btn-config" onclick="openConfigModal()">⚙️ Firebase</button>
+    </div>
+  </header>
+
+  <!-- Main Game Arena -->
+  <main>
+    <!-- Lobby Overlay (First Screen) -->
+    <div id="lobby-screen">
+      <!-- Fullscreen Button in Menu / Lobby -->
+      <button type="button" class="btn-config" id="btn-lobby-fullscreen" onclick="toggleFullscreen()" style="position: fixed; top: 18px; right: 20px; z-index: 120; display: flex; align-items: center; gap: 6px; padding: 9px 18px; border-radius: 20px; font-size: 0.85rem; background: rgba(15, 23, 42, 0.95); border: 1px solid var(--border-glow); color: #00f2fe; cursor: pointer; box-shadow: 0 0 18px rgba(0, 242, 254, 0.4); font-family: 'Orbitron', sans-serif; font-weight: 700;">
+        ⛶ Skrin Penuh
+      </button>
+
+      <div class="lobby-card">
+        <h1 class="lobby-title">BATTLE KUIZ AR</h1>
+        <p class="lobby-subtitle">Topik: Solat Jamak & Qasar (Bidang Fekah) • Segerak 2 Peranti Real-Time</p>
+
+        <!-- Lobby Navigation Tabs -->
+        <div class="lobby-tabs">
+          <button type="button" class="lobby-tab-btn active" id="tab-btn-setup" onclick="switchLobbyTab('setup')">🎮 Masuk Kuiz</button>
+          <button type="button" class="lobby-tab-btn" id="tab-btn-scoreboard" onclick="switchLobbyTab('scoreboard')">🏆 Scoreboard Guru</button>
+          <button type="button" class="lobby-tab-btn" id="tab-btn-review" onclick="switchLobbyTab('review')">📖 Ulangkaji Soalan Salah</button>
+        </div>
+
+        <!-- 1. TAB: SETUP KUIZ -->
+        <div id="panel-lobby-setup">
+          <div class="input-group">
+            <label>Pilih Nama Kumpulan (6 Elemen BoBoiBoy)</label>
+            <div class="team-grid" id="team-selector-grid">
+              <button type="button" class="team-opt-btn active" data-team="BoBoiBoy Halilintar" onclick="selectTeamName('BoBoiBoy Halilintar')">
+                <span class="team-icon">⚡</span> <span>BoBoiBoy Halilintar</span>
+              </button>
+              <button type="button" class="team-opt-btn" data-team="BoBoiBoy Taufan" onclick="selectTeamName('BoBoiBoy Taufan')">
+                <span class="team-icon">🌪️</span> <span>BoBoiBoy Taufan</span>
+              </button>
+              <button type="button" class="team-opt-btn" data-team="BoBoiBoy Gempa" onclick="selectTeamName('BoBoiBoy Gempa')">
+                <span class="team-icon">🪨</span> <span>BoBoiBoy Gempa</span>
+              </button>
+              <button type="button" class="team-opt-btn" data-team="BoBoiBoy Blaze" onclick="selectTeamName('BoBoiBoy Blaze')">
+                <span class="team-icon">🔥</span> <span>BoBoiBoy Blaze</span>
+              </button>
+              <button type="button" class="team-opt-btn" data-team="BoBoiBoy Ice" onclick="selectTeamName('BoBoiBoy Ice')">
+                <span class="team-icon">❄️</span> <span>BoBoiBoy Ice</span>
+              </button>
+              <button type="button" class="team-opt-btn" data-team="BoBoiBoy Duri" onclick="selectTeamName('BoBoiBoy Duri')">
+                <span class="team-icon">🌿</span> <span>BoBoiBoy Duri</span>
+              </button>
+            </div>
+            <input type="hidden" id="player-name-input" value="BoBoiBoy Halilintar">
+          </div>
+
+          <div class="input-group">
+            <label>Kod Bilik / Pilihan Kelas (Mesti Sama di Kedua-dua Peranti)</label>
+            <div class="role-selector" style="margin-bottom: 0;">
+              <button type="button" class="role-btn active" id="btn-room-2t" onclick="selectRoom('2 TIRMIZI')">2 Tirmizi (Default)</button>
+              <button type="button" class="role-btn" id="btn-room-1t" onclick="selectRoom('1 TIRMIZI')">1 Tirmizi</button>
+            </div>
+            <input type="hidden" id="room-id-input" value="2 TIRMIZI">
+          </div>
+
+
+
+          <div class="input-group">
+            <label>Pilih Slot Kumpulan</label>
+            <div class="role-selector">
+              <button type="button" class="role-btn active" id="btn-role-p1" onclick="selectRole('player1')">HOST</button>
+              <button type="button" class="role-btn" id="btn-role-p2" onclick="selectRole('player2')">LAWAN</button>
+            </div>
+          </div>
+
+          <div class="input-group">
+            <label>Pilihan Mod Kawalan</label>
+            <div class="role-selector">
+              <button type="button" class="role-btn" id="btn-mode-ar" onclick="selectPlayMode('ar')">📷 Kamera AR (Webcam)</button>
+              <button type="button" class="role-btn active" id="btn-mode-touch" onclick="selectPlayMode('touch')">🕹️ Tanpa Kamera (Default)</button>
+            </div>
+          </div>
+
+          <button class="btn-primary" onclick="startGame()">MASUK ARENA KUIZ 🚀</button>
+        </div>
+
+        <!-- 2. TAB: SCOREBOARD GURU -->
+        <div id="panel-lobby-scoreboard" class="scoreboard-panel" style="display: none;">
+          <div class="sb-filters">
+            <button type="button" class="sb-filter-btn active" id="filter-all" onclick="filterScoreboard('ALL')">Semua Kelas</button>
+            <button type="button" class="sb-filter-btn" id="filter-2t" onclick="filterScoreboard('2 TIRMIZI')">2 Tirmizi</button>
+            <button type="button" class="sb-filter-btn" id="filter-1t" onclick="filterScoreboard('1 TIRMIZI')">1 Tirmizi</button>
+          </div>
+
+          <div style="font-size: 0.85rem; font-weight: 800; color: #ffd700; margin-bottom: 8px; font-family: 'Orbitron'; display: flex; align-items: center; gap: 6px;">
+            <span>👑</span> <span>KEDUDUKAN PASUKAN BOBOIBOY</span>
+          </div>
+          <table class="sb-table">
+            <thead>
+              <tr>
+                <th style="width: 45px; text-align: center;">Ked.</th>
+                <th>Kumpulan</th>
+                <th style="text-align: center;">Menang</th>
+                <th style="text-align: right;">Skor Rekod</th>
+              </tr>
+            </thead>
+            <tbody id="sb-leaderboard-body">
+              <!-- Rendered via JS -->
+            </tbody>
+          </table>
+
+          <div style="font-size: 0.85rem; font-weight: 800; color: #38bdf8; margin-bottom: 8px; font-family: 'Orbitron'; display: flex; justify-content: space-between; align-items: center;">
+            <span>📜 REKOD PERLAWANAN SELESAI</span>
+            <span id="sb-total-matches-count" style="font-size: 0.75rem; color: #94a3b8; font-weight: 500;">(0 Perlawanan)</span>
+          </div>
+          <div class="sb-history-list" id="sb-history-container">
+            <!-- Rendered via JS -->
+          </div>
+
+          <div style="display: flex; gap: 10px; margin-top: 14px;">
+            <button class="btn-primary" style="flex: 2; padding: 12px; font-size: 0.95rem;" onclick="switchLobbyTab('setup')">🎮 Mulakan Kuiz Baharu</button>
+            <button class="btn-secondary" style="flex: 1.2; padding: 12px; font-size: 0.85rem; background: rgba(239, 68, 68, 0.2); border: 1px solid #ef4444; color: #fca5a5; font-weight: 700; cursor: pointer;" onclick="clearScoreboardHistory()">🔄 Reset Scoreboard</button>
+          </div>
+        </div>
+
+        <!-- 3. TAB: ULANGKAJI SOALAN SALAH -->
+        <div id="panel-lobby-review" class="review-panel" style="display: none;">
+          <div class="sb-filters">
+            <button type="button" class="sb-filter-btn active" id="filter-rev-all" onclick="filterReviewQuestions('ALL')">Semua Kelas</button>
+            <button type="button" class="sb-filter-btn" id="filter-rev-2t" onclick="filterReviewQuestions('2 TIRMIZI')">2 Tirmizi</button>
+            <button type="button" class="sb-filter-btn" id="filter-rev-1t" onclick="filterReviewQuestions('1 TIRMIZI')">1 Tirmizi</button>
+          </div>
+
+          <div style="font-size: 0.85rem; font-weight: 800; color: #f43f5e; margin-bottom: 10px; font-family: 'Orbitron'; display: flex; justify-content: space-between; align-items: center;">
+            <span>📖 SENARAI SOALAN SALAH DIJAWAB</span>
+            <span id="review-total-count" style="font-size: 0.75rem; color: #94a3b8; font-weight: 500;">(0 Soalan Direkod)</span>
+          </div>
+
+          <div class="review-card-list" id="review-questions-container">
+            <!-- Rendered via JS -->
+          </div>
+
+          <div style="display: flex; gap: 10px; margin-top: 14px;">
+            <button class="btn-primary" style="flex: 2; padding: 12px; font-size: 0.95rem;" onclick="switchLobbyTab('setup')">🎮 Mulakan Kuiz Baharu</button>
+            <button class="btn-secondary" style="flex: 1.2; padding: 12px; font-size: 0.85rem; background: rgba(239, 68, 68, 0.2); border: 1px solid #ef4444; color: #fca5a5; font-weight: 700; cursor: pointer;" onclick="clearReviewQuestions()">🗑️ Padam Rekod Salah</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Arena Split View -->
+    <div class="game-arena">
+      <!-- Left: Webcam + AR Canvas -->
+      <div class="camera-pane">
+        <video id="webcam-video" autoplay playsinline muted></video>
+        <canvas id="ar-canvas"></canvas>
+        <div class="camera-status-pill">
+          <div class="live-dot"></div>
+          <span id="ar-status-text">Memuatkan MediaPipe AR...</span>
+        </div>
+      </div>
+
+      <!-- Right: Quiz & Buzzer Controls -->
+      <div class="quiz-pane">
+        <!-- Scoreboard & Leaderboard Kumpulan Tertinggi -->
+        <div class="scoreboard-container">
+          <div style="display: flex; justify-content: space-between; align-items: center; gap: 8px;">
+            <div class="leader-banner" id="leader-banner" style="flex: 1; margin-bottom: 0;">
+              <span>🏆</span>
+              <span id="leader-banner-text">KEDUDUKAN: Menunggu persaingan bermula...</span>
+            </div>
+            <button type="button" class="btn-config" onclick="resetLiveScoreboard()" style="padding: 6px 12px; font-size: 0.78rem; border-radius: 8px; white-space: nowrap; border: 1px solid #f59e0b; color: #fef08a; cursor: pointer;" title="Set Semula Skor Semasa ke 0">
+              🔄 Reset Skor
+            </button>
+          </div>
+          <div class="scoreboard" style="margin-top: 10px;">
+            <div class="player-card" id="card-p1">
+              <div class="rank-badge rank-tie" id="rank-badge-p1">🤝 SERI</div>
+              <div class="player-name" id="name-p1">KUMPULAN 1</div>
+              <div class="player-score" id="score-p1">0</div>
+            </div>
+            <div class="player-card" id="card-p2">
+              <div class="rank-badge rank-tie" id="rank-badge-p2">🤝 SERI</div>
+              <div class="player-name" id="name-p2">KUMPULAN 2</div>
+              <div class="player-score" id="score-p2">0</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Buzzer Status Alert -->
+        <div id="buzzer-banner" class="buzzer-alert">
+          ANDA TEKAN DULU! JAWAB SEKARANG!
+        </div>
+
+        <!-- Pemasa Countdown Masa Menjawab -->
+        <div id="timer-box" class="timer-container">
+          <div class="timer-header">
+            <span id="timer-label">⏱️ MASA MENJAWAB:</span>
+            <span id="timer-text" class="timer-countdown">5s</span>
+          </div>
+          <div class="timer-bar-wrapper">
+            <div id="timer-bar" class="timer-bar"></div>
+          </div>
+        </div>
+
+        <!-- Question Section -->
+        <div class="question-box">
+          <div class="q-number" id="q-counter">SOALAN 1 / 10</div>
+          <div class="q-text" id="q-text">Menunggu pemain bersedia...</div>
+        </div>
+
+        <!-- Answers Buttons -->
+        <div class="answers-grid">
+          <button class="ans-btn" id="ans-0" onclick="submitAnswer(0)" disabled>A. Menunggu...</button>
+          <button class="ans-btn" id="ans-1" onclick="submitAnswer(1)" disabled>B. Menunggu...</button>
+          <button class="ans-btn" id="ans-2" onclick="submitAnswer(2)" disabled>C. Menunggu...</button>
+          <button class="ans-btn" id="ans-3" onclick="submitAnswer(3)" disabled>D. Menunggu...</button>
+        </div>
+
+        <!-- Host Action Buttons -->
+        <div class="host-controls" id="host-actions" style="display: none;">
+          <button class="btn-secondary" onclick="nextQuestion()">Soalan Seterusnya ⏩</button>
+          <button class="btn-secondary" onclick="resetGame()">Set Semula Markah 🔄</button>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- Modal Konfigurasi Firebase -->
+  <div id="config-modal">
+    <div class="modal-card">
+      <h2 style="font-family: 'Orbitron'; font-size: 1.3rem; margin-bottom: 12px; color: var(--primary);">
+        ⚙️ Tetapan Firebase Realtime DB
+      </h2>
+      <p style="font-size: 0.85rem; color: #94a3b8; margin-bottom: 16px;">
+        Tampal kod JSON konfigurasi dari Firebase Console anda ke sini untuk menyegerakkan data peranti secara langsung:
+      </p>
+
+      <textarea id="firebase-json-input" rows="8" class="input-control" style="font-family: monospace; font-size: 0.85rem;" placeholder='{
+  "apiKey": "AIzaSy...",
+  "authDomain": "...",
+  "databaseURL": "https://...",
+  "projectId": "..."
+}'></textarea>
+
+      <div style="display: flex; gap: 10px; margin-top: 16px;">
+        <button class="btn-primary" style="flex: 1;" onclick="saveFirebaseConfig()">Simpan & Muat Semula</button>
+        <button class="btn-secondary" style="flex: 1;" onclick="closeConfigModal()">Tutup</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ==========================================
+    // 1. BANK SOALAN LENGKAP: SOLAT JAMAK & QASAR (50 SOALAN)
+    // ==========================================
+    const ALL_QUESTIONS_PART_A = [{"question": "Apakah maksud solat jamak dari segi istilah syarak?", "options": ["Memendekkan solat fardu 4 rakaat menjadi 2 rakaat", "Menghimpunkan dua solat fardhu dalam satu waktu", "Menggantikan solat fardu yang tertinggal", "Menunaikan solat fardu secara berjemaah"], "answer": 1, "isKbat": false, "timeLimit": 5}, {"question": "Apakah maksud solat qasar?", "options": ["Menghimpunkan dua solat fardu dalam satu waktu", "Menunaikan solat fardu secara duduk atau baring", "Memendekkan solat fardu 4 rakaat menjadi 2 rakaat", "Menunaikan solat sunat sebelum dan selepas solat fardu"], "answer": 2, "isKbat": false, "timeLimit": 5}, {"question": "Apakah maksud solat Jamak Taqdim?", "options": ["Menunaikan kedua-dua solat fardu dalam waktu solat yang kedua", "Menunaikan solat fardu di awal waktu setiap waktu solat", "Menunaikan kedua-dua solat fardu dalam waktu solat yang pertama", "Menunaikan solat qasar tanpa menghimpunkan solat"], "answer": 2, "isKbat": false, "timeLimit": 5}, {"question": "Antara berikut, manakah contoh pelaksanaan solat Jamak Taqdim?", "options": ["Menunaikan solat Zohor dan Asar dalam waktu Asar", "Menunaikan solat Maghrib dan Isyak dalam waktu Isyak", "Menunaikan solat Zohor dan Asar dalam waktu Zohor", "Menunaikan solat Subuh dan Zohor dalam waktu Zohor"], "answer": 2, "isKbat": false, "timeLimit": 5}, {"question": "Apakah maksud solat Jamak Takhir?", "options": ["Menunaikan kedua-dua solat fardu dalam waktu solat yang kedua", "Menunaikan kedua-dua solat fardu dalam waktu solat yang pertama", "Menunaikan solat fardu di penghujung waktu solat", "Mengqadak solat fardu yang telah luput"], "answer": 0, "isKbat": false, "timeLimit": 5}, {"question": "Antara berikut, manakah contoh pelaksanaan solat Jamak Takhir?", "options": ["Menunaikan solat Zohor dan Asar dalam waktu Asar", "Menunaikan solat Zohor dan Asar dalam waktu Zohor", "Menunaikan solat Isyak dan Subuh dalam waktu Subuh", "Menunaikan solat Asar dan Maghrib dalam waktu Asar"], "answer": 0, "isKbat": false, "timeLimit": 5}, {"question": "Apakah solat-solat fardu yang BOLEH diqasarkan?", "options": ["Subuh, Zohor dan Asar", "Zohor, Asar dan Isyak", "Maghrib dan Isyak sahaja", "Subuh dan Maghrib sahaja"], "answer": 1, "isKbat": false, "timeLimit": 5}, {"question": "Berapakah jarak perjalanan sehala yang diharuskan untuk solat jamak dan qasar?", "options": ["Melebihi 60km", "Melebihi 70km", "Melebihi 81km", "Melebihi 100km"], "answer": 2, "isKbat": false, "timeLimit": 5}, {"question": "Antara syarat perjalanan yang diharuskan solat jamak dan qasar ialah perjalanan tersebut:", "options": ["Dilakukan pada waktu malam sahaja", "Menggunakan kenderaan awam sahaja", "Bukan bertujuan maksiat", "Disertai sekurang-kurangnya dua orang"], "answer": 2, "isKbat": false, "timeLimit": 5}, {"question": "Salah satu syarat perjalanan yang diharuskan ialah musafir mestilah:", "options": ["Mengetahui destinasi yang dituju", "Menempah penginapan terlebih dahulu", "Mempunyai pasport perjalanan", "Mengembara tanpa arah haluan"], "answer": 0, "isKbat": false, "timeLimit": 5}, {"question": "Manakah antara berikut BUKAN syarat solat Jamak Taqdim?", "options": ["Melaksanakan solat mengikut turutan", "Niat jamak dalam solat pertama", "Niat jamak dalam waktu kedua", "Bersegera menunaikan solat yang kedua selepas memberi salam solat pertama"], "answer": 2, "isKbat": false, "timeLimit": 5}, {"question": "Bilakah niat jamak perlu dilakukan bagi solat Jamak Taqdim?", "options": ["Selepas selesai solat pertama", "Dalam solat pertama", "Semasa solat kedua", "Sebelum mengambil wuduk"], "answer": 1, "isKbat": false, "timeLimit": 5}, {"question": "Apakah syarat tempoh masa antara solat pertama dan solat kedua dalam Jamak Taqdim?", "options": ["Disunatkan berehat dan makan terlebih dahulu", "Bersegera menunaikan solat yang kedua selepas memberi salam solat pertama", "Diharuskan diselangi dengan solat sunat yang panjang", "Menunggu masuk waktu solat yang kedua"], "answer": 1, "isKbat": false, "timeLimit": 5}, {"question": "Bilakah status musafir perlu berterusan bagi orang yang menunaikan Jamak Taqdim?", "options": ["Hingga selesai memberi salam solat kedua", "Hingga waktu solat kedua tamat", "Hingga dia kembali ke rumahnya", "Hingga solat pertama selesai sahaja"], "answer": 0, "isKbat": false, "timeLimit": 5}, {"question": "Apakah syarat pertama bagi pelaksanaan solat Jamak Takhir?", "options": ["Bersegera solat tanpa wuduk", "Niat jamak dalam waktu pertama", "Melaksanakan solat secara tamam", "Mesti bermusafir melebihi setahun"], "answer": 1, "isKbat": false, "timeLimit": 5}, {"question": "Bilakah status musafir perlu berkekalan bagi solat Jamak Takhir?", "options": ["Hingga hari berikutnya", "Hingga masuk waktu solat seterusnya", "Sehingga selesai solat ditunaikan", "Sebelum waktu pertama tamat sahaja"], "answer": 2, "isKbat": false, "timeLimit": 5}, {"question": "Antara syarat diharuskan solat qasar berkaitan sempadan ialah musafir mestilah:", "options": ["Telah melepasi sempadan kawasan tempat tinggal", "Masih berada di dalam rumahnya", "Sampai ke negeri lain sahaja", "Berada di lapangan terbang sahaja"], "answer": 0, "isKbat": false, "timeLimit": 5}, {"question": "Berapakah tempoh maksimum seseorang boleh berniat menetap di sesuatu tempat untuk membolehkannya solat qasar?", "options": ["Tidak melebihi 2 hari", "Tidak melebihi 3 hari (tidak termasuk hari pergi dan balik)", "Melebihi 7 hari", "Sekurang-kurangnya 14 hari"], "answer": 1, "isKbat": false, "timeLimit": 5}, {"question": "Syarat sah solat qasar bagi seorang makmum ialah musafir tersebut:", "options": ["Tidak mengikut imam yang bermukim", "Mesti menjadi imam kepada orang bermukim", "Mesti bersendirian tanpa jemaah", "Mengikut imam yang solat tamam 4 rakaat"], "answer": 0, "isKbat": false, "timeLimit": 5}, {"question": "Sekiranya seseorang berniat tinggal di sesuatu tempat melebihi 3 hari, bagaimanakah cara solatnya apabila sampai di destinasi tersebut?", "options": ["Dia tetap boleh solat jamak dan qasar", "Dia tidak lagi dikira musafir dan perlu menunaikan solat seperti biasa (tamam)", "Dia gugur kewajipan solat fardu", "Dia hanya perlu solat 2 rakaat sahaja"], "answer": 1, "isKbat": false, "timeLimit": 5}, {"question": "Seseorang yang berniat tinggal melebihi 3 hari di destinasinya masih boleh melaksanakan jamak dan qasar ketika:", "options": ["Berada di tempat penginapan destinasinya", "Dalam perjalanan pergi dan balik sahaja", "Bila-bila masa sepanjang berada di sana", "Hari terakhir sahaja"], "answer": 1, "isKbat": false, "timeLimit": 5}, {"question": "Jika musafir tidak pasti tempoh menetapnya di sesuatu tempat, berapa lamakah dia dibenarkan solat qasar?", "options": ["Sehingga 3 hari sahaja", "Sehingga 7 hari", "Sehingga 18 hari", "Sehingga 30 hari"], "answer": 2, "isKbat": false, "timeLimit": 5}, {"question": "Apakah hukum berniat dalam hati dan melafazkan niat ketika menunaikan solat jamak dan qasar?", "options": ["Sunat berniat dalam hati dan wajib melafazkan niat", "Wajib berniat dalam hati dan sunat melafazkan niat", "Wajib kedua-duanya sekali", "Harus berniat dalam hati dan makruh melafazkan niat"], "answer": 1, "isKbat": false, "timeLimit": 5}, {"question": "Apakah maksud \"tamam\" dalam pelaksanaan solat?", "options": ["Solat yang dipendekkan", "Solat yang dihimpunkan", "Solat seperti biasa (rakaat sempurna)", "Solat yang digantikan"], "answer": 2, "isKbat": false, "timeLimit": 5}, {"question": "Berdasarkan lafaz niat, bagaimanakah lafaz niat solat Zohor dua rakaat qasar yang dihimpunkan kepada Asar?", "options": ["\"أصلي فرض الظهر أربع ركعات...\"", "\"أصلي فرض الظهر ركعتين قصرا مجموعا إليه العصر...\"", "\"أصلي فرض العصر ركعتين قصرا...\"", "\"أصلي فرض المغرب ثلاث ركعات...\""], "answer": 1, "isKbat": false, "timeLimit": 5}, {"question": "Apakah maksud lafaz niat solat Asar: \"أصلي فرض العصر ركعتين قصرا مجموعا إلى الظهر...\"?", "options": ["Sahaja aku solat fardu Zohor empat rakaat tamam", "Sahaja aku menunaikan solat fardhu Asar dua rakaat qasar dihimpunkan kepadanya Zohor", "Sahaja aku solat sunat musafir dua rakaat", "Sahaja aku menunaikan solat fardhu Subuh dua rakaat"], "answer": 1, "isKbat": false, "timeLimit": 5}, {"question": "Ahmad bermusafir dari Temerloh ke Kuantan sejauh 130 km untuk menziarahi saudaranya. Perjalanan Ahmad ini:", "options": ["Tidak mengharuskan jamak kerana tujuannya ziarah", "Mengharuskan solat jamak dan qasar kerana melebihi 81 km dan bukan tujuan maksiat", "Hanya mengharuskan solat qasar tanpa jamak", "Mengharuskan solat tamam sahaja"], "answer": 1, "isKbat": false, "timeLimit": 5}, {"question": "Farid menaiki bas untuk pergi menonton konsert maksiat sejauh 200 km. Apakah hukum dia solat qasar sepanjang perjalanan itu?", "options": ["Harus kerana jaraknya melebihi 81 km", "Tidak diharuskan kerana perjalanannya bertujuan maksiat", "Sunat kerana dia musafir yang letih", "Wajib qasar sahaja"], "answer": 1, "isKbat": false, "timeLimit": 5}, {"question": "Berapakah bilangan rakaat bagi solat Asar apabila diqasarkan?", "options": ["1 rakaat", "2 rakaat", "3 rakaat", "4 rakaat"], "answer": 1, "isKbat": false, "timeLimit": 5}, {"question": "Bolehkah solat Maghrib diqasarkan menjadi 2 rakaat?", "options": ["Boleh jika musafir sangat penat", "Boleh jika jarak melebihi 81 km", "Tidak boleh, kerana solat qasar hanya untuk solat 4 rakaat (Zohor, Asar & Isyak)", "Boleh jika dilakukan secara jamak takhir"], "answer": 2, "isKbat": false, "timeLimit": 5}, {"question": "Apakah yang dimaksudkan dengan \"tidak termasuk hari pergi dan balik\" dalam tempoh musafir 3 hari?", "options": ["Hari pergi dan hari balik tidak dikira dalam kiraan tempoh 3 hari menetap tersebut", "Hari pergi dan balik tidak boleh mendirikan solat", "Pada hari pergi dan balik wajib solat tamam", "Musafir hanya boleh solat jamak pada hari pergi sahaja"], "answer": 0, "isKbat": false, "timeLimit": 5}, {"question": "Azlan keluar dari rumahnya untuk bermusafir sejauh 100 km, tetapi dia masih berada di ruang tamu rumahnya ketika waktu Zohor masuk. Bolehkah dia mula solat qasar di rumahnya?", "options": ["Boleh kerana niatnya sudah muktamad", "Tidak boleh kerana belum melepasi sempadan kawasan tempat tinggalnya", "Boleh jika tiket perjalanannya sudah dibeli", "Boleh dengan syarat jamak takhir"], "answer": 1, "isKbat": false, "timeLimit": 5}, {"question": "Solat manakah yang TIDAK boleh diqasarkan mengikut teks?", "options": ["Zohor dan Asar", "Asar dan Isyak", "Subuh dan Maghrib", "Zohor dan Isyak"], "answer": 2, "isKbat": false, "timeLimit": 5}, {"question": "Seseorang yang ingin melakukan Jamak Takhir wajib berniat jamak:", "options": ["Sebelum keluar dari rumah", "Dalam waktu pertama solat tersebut", "Selepas azan waktu kedua berkumandang", "Selepas solat kedua selesai"], "answer": 1, "isKbat": false, "timeLimit": 5}, {"question": "Apakah kesan jika seorang musafir yang berniat solat qasar berimamkan seorang imam tempatan yang solat tamam (4 rakaat)?", "options": ["Solat musafir itu sah 2 rakaat dan dia boleh terus memberi salam", "Dia wajib mengikut imam solat seperti biasa (tamam 4 rakaat)", "Solat musafir tersebut batal serta-merta", "Dia perlu mengulangi solatnya secara bersendirian"], "answer": 1, "isKbat": false, "timeLimit": 5}, {"question": "Mengapakah disyaratkan \"melaksanakan solat mengikut turutan\" dalam Jamak Taqdim?", "options": ["Kerana waktu kedua mendahului waktu pertama", "Kerana solat pertama mestilah ditunaikan dahulu sebelum solat kedua", "Supaya jemaah tidak tertidur", "Kerana bilangan rakaatnya berbeza"], "answer": 1, "isKbat": false, "timeLimit": 5}, {"question": "Sekiranya seseorang keluar bermusafir tanpa mengetahui destinasi yang hendak dituju (merayau tanpa tujuan pasti), apakah hukum solat jamak dan qasarnya?", "options": ["Diharuskan kerana dia tetap bergerak jauh", "Tidak diharuskan kerana syarat perjalanan ialah mengetahui destinasi yang dituju", "Diharuskan jika jaraknya melebihi 100km", "Sunat kerana dia seorang pengembara"], "answer": 1, "isKbat": false, "timeLimit": 5}, {"question": "Antara berikut, manakah pasangan solat fardu yang betul untuk dihimpunkan secara jamak?", "options": ["Subuh dan Zohor", "Asar dan Maghrib", "Zohor dan Asar", "Isyak dan Subuh"], "answer": 2, "isKbat": false, "timeLimit": 5}, {"question": "Jika seorang musafir tiba di destinasinya dan berniat menetap selama 2 hari sahaja, apakah hukum solat qasarnya di situ?", "options": ["Tidak boleh kerana dia sudah sampai", "Boleh solat qasar kerana tempoh tinggal tidak melebihi 3 hari", "Wajib solat tamam sepanjang 2 hari itu", "Dilarang solat jamak dan qasar"], "answer": 1, "isKbat": false, "timeLimit": 5}, {"question": "Seorang musafir berniat solat Jamak Taqdim Zohor dan Asar. Selepas memberi salam solat Zohor, dia berbual-bual dan berehat selama satu jam sebelum mendirikan solat Asar. Tindakan ini melanggar syarat:", "options": ["Niat jamak dalam solat pertama", "Bersegera menunaikan solat yang kedua selepas memberi salam solat pertama", "Melaksanakan solat mengikut turutan", "Melepasi sempadan tempat tinggal"], "answer": 1, "isKbat": false, "timeLimit": 5}];
+const ALL_QUESTIONS_PART_B = [{"question": "Haziq menaiki kereta dari Kuala Lumpur ke Johor Bahru (jarak 330 km) dan berhasrat bercuti di sana selama 5 hari. Semasa berhenti rehat di kawasan rehat dan rawat (R&R) dalam perjalanan, dia ingin menunaikan solat Zohor dan Asar. Nilaikan status solat jamak dan qasar Haziq di R&R tersebut.", "options": ["Tidak sah, kerana niatnya untuk menetap di Johor Bahru melebihi 3 hari telah membatalkan seluruh rukhsahnya sejak awal perjalanan", "Sah, kerana dia masih berada dalam perjalanan pergi dan rukhsah jamak serta qasar dibenarkan ketika dalam perjalanan", "Hanya solat jamak sahaja sah, manakala solat qasar tidak sah kerana belum sampai ke destinasi", "Makruh, kerana dia sepatutnya menunggu sehingga tiba di Johor Bahru untuk menunaikan solat tamam"], "answer": 1, "isKbat": true, "timeLimit": 15}, {"question": "Razif merancang melakukan Jamak Takhir bagi solat Zohor dan Asar. Namun demikian, dia terlupa untuk berniat jamak sehinggalah waktu Zohor telah habis dan masuk waktu Asar. Apakah analisis hukum terhadap situasi Razif ini?", "options": ["Dia boleh meneruskan Jamak Takhir seperti biasa asalkan dia masih dalam perjalanan musafir", "Solat Zohornya telah luput waktunya tanpa niat jamak yang sah, maka dia berdosa kerana meninggalkan solat dalam waktunya dan wajib mengqadak solat Zohor tersebut", "Dia dimaafkan dan secara automatik solat Zohornya berpindah menjadi Jamak Taqdim", "Dia hanya perlu membayar fidyah dan meneruskan solat Asar secara qasar"], "answer": 1, "isKbat": true, "timeLimit": 15}, {"question": "Kamal bertugas menyelesaikan urusan rasmi di sebuah bandar yang jaraknya 120 km dari rumahnya. Dia tidak pasti sama ada urusan itu selesai dalam tempoh sehari, seminggu atau dua minggu, dan sentiasa menjangka akan pulang sebaik urusan selesai. Nilaikan tempoh keharusan solat qasarnya di bandar tersebut.", "options": ["Dia hanya boleh qasar selama 3 hari sahaja dan selepas itu wajib tamam", "Dia langsung tidak dibenarkan qasar kerana ketiadaan tempoh yang pasti", "Dia dibenarkan menunaikan solat qasar sehingga 18 hari kerana tidak pasti tempoh menetapnya", "Dia boleh qasar selama mana dia berada di situ tanpa had masa selagi urusan belum selesai"], "answer": 2, "isKbat": true, "timeLimit": 15}, {"question": "Aminah bermusafir sejauh 90 km dan singgah bersolat di sebuah masjid. Dia mendapati imam kariah di masjid itu sedang mengimamkan solat fardu Isyak secara tamam (4 rakaat). Analisis tindakan solat yang paling tepat bagi Aminah:", "options": ["Aminah boleh berniat qasar dan terus memberi salam pada rakaat kedua mendahului imam", "Aminah wajib mengikut imam menyempurnakan solat 4 rakaat (tamam) kerana syarat qasar ialah tidak mengikut imam yang bermukim", "Solat Aminah batal jika dia berniat menjadi makmum kepada imam tersebut", "Aminah perlu menunggu imam selesai solat barulah dia boleh mendirikan solat secara bersendirian"], "answer": 1, "isKbat": true, "timeLimit": 15}, {"question": "Seseorang musafir yang menunaikan Jamak Taqdim mendapati kapalnya telah berlabuh dan dia tiba di kawasan perumahan tempat tinggalnya semasa sedang menunaikan rakaat kedua dalam solat yang kedua. Nilaikan keabsahan solat jamaknya itu.", "options": ["Solat Jamak Taqdimnya tidak sah kerana syaratnya mestilah berkekalan musafir hingga selesai memberi salam solat kedua", "Solatnya sah sepenuhnya kerana dia memulakan solat ketika masih berstatus musafir", "Dia hanya perlu menambah dua rakaat lagi untuk solat pertama", "Dia perlu mengulangi kedua-dua solat tersebut secara jamak takhir"], "answer": 0, "isKbat": true, "timeLimit": 15}, {"question": "Mengapakah syariat Islam menetapkan syarat bahawa perjalanan yang mengharuskan solat jamak dan qasar mestilah \"bukan bertujuan maksiat\"?", "options": ["Kerana rukhsah (keringanan) adalah anugerah dan rahmat Allah SWT yang tidak boleh dijadikan bantuan untuk melakukan kederhakaan kepada-Nya", "Kerana orang yang melakukan maksiat tidak diterima sebarang amal ibadahnya oleh masyarakat", "Untuk memastikan industri pelancongan mendapat hasil keuntungan yang bersih", "Supaya musafir tidak membawa barang larangan semasa menaiki kenderaan"], "answer": 0, "isKbat": true, "timeLimit": 15}, {"question": "Luqman menempuh perjalanan sejauh 85 km untuk bercuti di sebuah resort selama 2 hari (tidak termasuk hari pergi dan balik). Setibanya di resort, dia mendirikan solat Zohor dan Asar secara jamak dan qasar sepanjang berada di situ. Nilaikan ketepatan amalan solat Luqman berdasarkan syarat yang ditetapkan.", "options": ["Amalan Luqman tepat kerana tempoh tinggalnya tidak melebihi 3 hari dan perjalanannya melebihi 81 km bukan bertujuan maksiat", "Amalan Luqman salah kerana solat qasar hanya dibenarkan semasa berada di atas kenderaan sahaja", "Amalan Luqman batal kerana resort merupakan tempat kediaman sementara yang dikira bermukim", "Luqman sepatutnya hanya menjamakkan solat tanpa memendekkannya (qasar)"], "answer": 0, "isKbat": true, "timeLimit": 15}, {"question": "Apakah analisis hikmah utama di sebalik pensyariatan solat qasar yang hanya memendekkan solat 4 rakaat (Zohor, Asar, Isyak) dan mengekalkan solat Maghrib (3 rakaat) serta Subuh (2 rakaat) pada bilangan asalnya?", "options": ["Mengelakkan kekeliruan kerana solat 4 rakaat boleh dibahagi dua secara seimbang, manakala Maghrib ganjil (witir siang) dan Subuh sudah sememangnya pendek (2 rakaat)", "Kerana solat Maghrib dan Subuh tidak memerlukan bacaan surah yang panjang", "Untuk memastikan musafir tidak tertidur semasa waktu fajar dan senja", "Kerana bilangan rakaat solat fardu ditetapkan mengikut kehendak khatib semasa khutbah"], "answer": 0, "isKbat": true, "timeLimit": 15}, {"question": "Hakim memulakan perjalanan dari rumahnya menuju ke destinasi sejauh 250 km. Semasa baru memandu 500 meter dari perkarangan rumahnya dan masih berada di dalam taman perumahannya, azan Zohor berkumandang lalu dia terus berhenti di surau tamannya untuk solat qasar 2 rakaat. Nilaikan solat qasar Hakim tersebut.", "options": ["Sah, kerana niat perjalanannya melebihi 81 km dan sudah bermula", "Tidak sah, kerana syarat diharuskan qasar mestilah telah melepasi sempadan kawasan tempat tinggalnya", "Sah sekiranya dia berazam tidak akan berpatah balik ke rumah", "Makruh kerana dia sepatutnya solat jamak takhir sahaja"], "answer": 1, "isKbat": true, "timeLimit": 15}, {"question": "Dalam pelaksanaan Jamak Taqdim, bagaimanakah analisis rasional di sebalik syarat \"bersegera menunaikan solat kedua selepas memberi salam solat pertama\" (muwalat)?", "options": ["Untuk memelihara konsep \"menghimpunkan\" (jamak) dua ibadah dalam satu kesatuan waktu tanpa dipisahkan oleh urusan duniawi yang panjang", "Supaya musafir tidak terlewat menaiki kenderaan awam", "Kerana wuduk bagi solat pertama akan terbatal secara automatik selepas 5 minit", "Bagi mengelakkan syaitan mengganggu ingatan bilangan rakaat solat kedua"], "answer": 0, "isKbat": true, "timeLimit": 15}];
+
+
+    let currentSetKey = 1;
+
+    function getQuestionsForSet(setKey) {
+      const setNum = Math.min(5, Math.max(1, parseInt(setKey, 10) || 1));
+      if (setNum >= 1 && setNum <= 4) {
+        const start = (setNum - 1) * 9;
+        const biasaList = ALL_QUESTIONS_PART_A.slice(start, start + 9);
+        const kbatQ = ALL_QUESTIONS_PART_B[setNum - 1] || ALL_QUESTIONS_PART_B[0];
+        return [...biasaList, kbatQ];
+      } else if (setNum === 5) {
+        const biasaList = ALL_QUESTIONS_PART_A.slice(36, 40);
+        const kbatList = ALL_QUESTIONS_PART_B.slice(4, 10);
+        return [...biasaList, ...kbatList];
+      }
+      return [...ALL_QUESTIONS_PART_A.slice(0, 9), ALL_QUESTIONS_PART_B[0]];
+    }
+
+    // Fungsi memilih set soalan secara rawak tanpa berturut-turut sama (1 hingga 5)
+    function pickRandomSetKey() {
+      const lastKey = parseInt(localStorage.getItem('ar_quiz_last_set_key'), 10) || currentSetKey || 1;
+      const candidates = [1, 2, 3, 4, 5].filter(k => k !== lastKey);
+      const chosen = candidates[Math.floor(Math.random() * candidates.length)] || ((lastKey % 5) + 1);
+      localStorage.setItem('ar_quiz_last_set_key', chosen);
+      return chosen;
+    }
+
+    let QUIZ_QUESTIONS = getQuestionsForSet(1);
+
+    function applyQuestionSet(setKey) {
+      currentSetKey = Math.min(5, Math.max(1, parseInt(setKey, 10) || 1));
+      QUIZ_QUESTIONS = getQuestionsForSet(currentSetKey);
+
+      const hasRealFirebase = !!localStorage.getItem("ar_quiz_firebase_config");
+      if (roomRef && hasRealFirebase && myRole === "player1") {
+        roomRef.child("meta/setKey").set(currentSetKey);
+      }
+
+      if (currentGameState) {
+        currentGameState.setKey = currentSetKey;
+        currentGameState.qIndex = 0;
+        currentGameState.lockedBy = null;
+        currentGameState.lockedAt = null;
+        currentGameState.isSteal = false;
+        currentGameState.showAnswer = false;
+        currentGameState.isFinished = false;
+        updateGameUI(currentGameState);
+      }
+    }
+
+    function randomizeNewQuestionSet() {
+      const newKey = pickRandomSetKey();
+      applyQuestionSet(newKey);
+      return newKey;
+    }
+
+    // ==========================================
+    // 2. IMEJ BUZZER (RED BUZZER & GOLDEN BUZZER - PNG TRANSPARENT)
+    // ==========================================
+    const imgRedBuzzer = new Image();
+    imgRedBuzzer.src = "assets/red_buzzer.png";
+
+    const imgGoldBuzzer = new Image();
+    imgGoldBuzzer.src = "assets/gold_buzzer.png";
+
+    // ==========================================
+    // 3. KESAN BUNYI SINTETIK (WEB AUDIO API)
+    // ==========================================
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    
+    function playBeep(freq = 440, duration = 0.15, type = "sine") {
+      try {
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = type;
+        osc.frequency.value = freq;
+        gain.gain.setValueAtTime(0.15, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + duration);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start();
+        osc.stop(audioCtx.currentTime + duration);
+      } catch (e) {
+        console.warn("Audio error:", e);
+      }
+    }
+
+    function soundBuzzer(isKbat = false) {
+      if (isKbat) {
+        // Golden Fanfare!
+        playBeep(587.33, 0.12, "triangle");
+        setTimeout(() => playBeep(739.99, 0.15, "triangle"), 80);
+        setTimeout(() => playBeep(880.00, 0.18, "triangle"), 160);
+        setTimeout(() => playBeep(1174.66, 0.45, "sawtooth"), 240);
+      } else {
+        // Red Buzzer klasik
+        playBeep(880, 0.35, "sawtooth");
+      }
+    }
+    function soundCorrect() {
+      playBeep(523.25, 0.15, "triangle");
+      setTimeout(() => playBeep(659.25, 0.25, "triangle"), 150);
+    }
+    function soundWrong() { playBeep(180, 0.4, "square"); }
+
+    // ==========================================
+    // 3. PENGURUSAN STATE PERMAINAN
+    // ==========================================
+    const BOBOIBOY_TEAMS = [
+      { name: "BoBoiBoy Halilintar", icon: "⚡", color: "#ef4444" },
+      { name: "BoBoiBoy Taufan",     icon: "🌪️", color: "#38bdf8" },
+      { name: "BoBoiBoy Gempa",      icon: "🪨", color: "#f59e0b" },
+      { name: "BoBoiBoy Blaze",      icon: "🔥", color: "#f97316" },
+      { name: "BoBoiBoy Ice",        icon: "❄️", color: "#06b6d4" },
+      { name: "BoBoiBoy Duri",       icon: "🌿", color: "#22c55e" }
+    ];
+
+    let myRole = 'player1'; // 'player1' atau 'player2'
+    let myName = 'BoBoiBoy Halilintar';
+    let currentRoomId = '2 TIRMIZI';
+    let dbRef = null;
+    let roomRef = null;
+    let currentGameState = null;
+    let isBuzzerCooldown = false;
+
+    let currentLobbyTab = 'setup';
+    let scoreboardFilterClass = 'ALL';
+    let reviewFilterClass = 'ALL';
+    const recordedMatchesSet = new Set();
+
+    function selectTeamName(teamName) {
+      myName = teamName;
+      const input = document.getElementById('player-name-input');
+      if (input) input.value = teamName;
+      document.querySelectorAll('.team-opt-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.getAttribute('data-team') === teamName);
+      });
+    }
+
+    function switchLobbyTab(tab) {
+      currentLobbyTab = tab;
+      const btnSetup = document.getElementById('tab-btn-setup');
+      const btnSb = document.getElementById('tab-btn-scoreboard');
+      const btnRev = document.getElementById('tab-btn-review');
+      const pnlSetup = document.getElementById('panel-lobby-setup');
+      const pnlSb = document.getElementById('panel-lobby-scoreboard');
+      const pnlRev = document.getElementById('panel-lobby-review');
+
+      if (btnSetup) btnSetup.classList.toggle('active', tab === 'setup');
+      if (btnSb) btnSb.classList.toggle('active', tab === 'scoreboard');
+      if (btnRev) btnRev.classList.toggle('active', tab === 'review');
+
+      if (pnlSetup) pnlSetup.style.display = (tab === 'setup') ? 'block' : 'none';
+      if (pnlSb) pnlSb.style.display = (tab === 'scoreboard') ? 'block' : 'none';
+      if (pnlRev) pnlRev.style.display = (tab === 'review') ? 'block' : 'none';
+
+      if (tab === 'scoreboard') {
+        renderScoreboardView();
+      } else if (tab === 'review') {
+        renderReviewQuestionsView();
+      }
+    }
+
+    function returnToMainMenu(tab = 'setup') {
+      const lobby = document.getElementById('lobby-screen');
+      if (lobby) lobby.style.display = 'flex';
+      switchLobbyTab(tab);
+    }
+
+    function filterScoreboard(kelas) {
+      scoreboardFilterClass = kelas;
+      const fAll = document.getElementById('filter-all');
+      const f2t = document.getElementById('filter-2t');
+      const f1t = document.getElementById('filter-1t');
+      if (fAll) fAll.classList.toggle('active', kelas === 'ALL');
+      if (f2t) f2t.classList.toggle('active', kelas === '2 TIRMIZI');
+      if (f1t) f1t.classList.toggle('active', kelas === '1 TIRMIZI');
+      renderScoreboardView();
+    }
+
+    function getScoreboardHistory() {
+      try {
+        return JSON.parse(localStorage.getItem('ar_quiz_scoreboard_history') || '[]');
+      } catch(e) {
+        return [];
+      }
+    }
+
+    function resetLiveScoreboard() {
+      if (confirm("Adakah anda ingin set semula (reset) markah perlawanan semasa kepada 0 - 0?")) {
+        const hasRealFirebase = !!localStorage.getItem('ar_quiz_firebase_config');
+        if (roomRef && hasRealFirebase) {
+          roomRef.child('meta').update({
+            scores: { player1: 0, player2: 0 },
+            lockedBy: null,
+            lockedAt: null,
+            isSteal: false,
+            showAnswer: false
+          });
+        }
+        if (currentGameState) {
+          currentGameState.scores = { player1: 0, player2: 0 };
+          currentGameState.lockedBy = null;
+          currentGameState.lockedAt = null;
+          currentGameState.isSteal = false;
+          currentGameState.showAnswer = false;
+          updateGameUI(currentGameState);
+        }
+        alert("✅ Markah perlawanan semasa telah diset semula kepada 0 - 0!");
+      }
+    }
+
+    function clearScoreboardHistory() {
+      if (confirm("Adakah anda pasti mahu set semula (reset) keseluruhan Scoreboard Guru dan memadam semua rekod markah?")) {
+        localStorage.removeItem('ar_quiz_scoreboard_history');
+        recordedMatchesSet.clear();
+
+        // Juga set semula markah perlawanan semasa kepada 0
+        const hasRealFirebase = !!localStorage.getItem('ar_quiz_firebase_config');
+        if (roomRef && hasRealFirebase) {
+          roomRef.child('meta').update({
+            scores: { player1: 0, player2: 0 },
+            lockedBy: null,
+            lockedAt: null,
+            isSteal: false,
+            showAnswer: false
+          });
+        }
+        if (currentGameState) {
+          currentGameState.scores = { player1: 0, player2: 0 };
+          currentGameState.lockedBy = null;
+          currentGameState.lockedAt = null;
+          currentGameState.isSteal = false;
+          currentGameState.showAnswer = false;
+          updateGameUI(currentGameState);
+        }
+
+        renderScoreboardView();
+        alert("✅ Scoreboard guru dan rekod kedudukan telah berjaya diset semula!");
+      }
+    }
+
+    function recordMatchToScoreboard(state) {
+      if (!state) return;
+      const name1 = (state.names && state.names.player1) || "BoBoiBoy Halilintar";
+      const name2 = (state.names && state.names.player2) || "BoBoiBoy Taufan";
+      const score1 = (state.scores && state.scores.player1) || 0;
+      const score2 = (state.scores && state.scores.player2) || 0;
+
+      const matchKey = `${currentRoomId}_${name1}_${score1}_${name2}_${score2}_${state.qIndex || 10}`;
+      if (recordedMatchesSet.has(matchKey)) return;
+      recordedMatchesSet.add(matchKey);
+
+      let winner = 'Seri';
+      if (score1 > score2) winner = name1;
+      else if (score2 > score1) winner = name2;
+
+      const newEntry = {
+        id: Date.now(),
+        timestamp: new Date().toLocaleDateString('ms-MY', { day: '2-digit', month: '2-digit', year: 'numeric' }) + ' ' + new Date().toLocaleTimeString('ms-MY', { hour: '2-digit', minute: '2-digit' }),
+        room: currentRoomId,
+        team1: name1,
+        score1: score1,
+        team2: name2,
+        score2: score2,
+        winner: winner,
+        highestScore: Math.max(score1, score2)
+      };
+
+      let history = getScoreboardHistory();
+      history.unshift(newEntry);
+      if (history.length > 40) history = history.slice(0, 40);
+      localStorage.setItem('ar_quiz_scoreboard_history', JSON.stringify(history));
+      renderScoreboardView();
+    }
+
+    function renderScoreboardView() {
+      const allHistory = getScoreboardHistory();
+      const filteredHistory = (scoreboardFilterClass === 'ALL')
+        ? allHistory
+        : allHistory.filter(m => m.room === scoreboardFilterClass);
+
+      const countEl = document.getElementById('sb-total-matches-count');
+      if (countEl) countEl.innerText = `(${filteredHistory.length} Perlawanan Selesai)`;
+
+      const teamStats = {};
+      BOBOIBOY_TEAMS.forEach(t => {
+        teamStats[t.name] = {
+          name: t.name,
+          icon: t.icon,
+          color: t.color,
+          wins: 0,
+          matches: 0,
+          highestScore: 0,
+          totalScore: 0
+        };
+      });
+
+      filteredHistory.forEach(match => {
+        if (teamStats[match.team1]) {
+          teamStats[match.team1].matches++;
+          teamStats[match.team1].totalScore += (match.score1 || 0);
+          if ((match.score1 || 0) > teamStats[match.team1].highestScore) {
+            teamStats[match.team1].highestScore = match.score1;
+          }
+          if (match.winner === match.team1) teamStats[match.team1].wins++;
+        }
+        if (teamStats[match.team2]) {
+          teamStats[match.team2].matches++;
+          teamStats[match.team2].totalScore += (match.score2 || 0);
+          if ((match.score2 || 0) > teamStats[match.team2].highestScore) {
+            teamStats[match.team2].highestScore = match.score2;
+          }
+          if (match.winner === match.team2) teamStats[match.team2].wins++;
+        }
+      });
+
+      const sortedTeams = Object.values(teamStats).sort((a, b) => {
+        if (b.wins !== a.wins) return b.wins - a.wins;
+        return b.highestScore - a.highestScore;
+      });
+
+      const lbBody = document.getElementById('sb-leaderboard-body');
+      if (lbBody) {
+        lbBody.innerHTML = sortedTeams.map((t, idx) => {
+          let medal = `<span style="color:#64748b;">${idx + 1}</span>`;
+          if (idx === 0 && t.wins > 0) medal = `🥇`;
+          else if (idx === 1 && t.wins > 0) medal = `🥈`;
+          else if (idx === 2 && t.wins > 0) medal = `🥉`;
+
+          return `
+            <tr>
+              <td class="sb-rank-badge" style="text-align:center;">${medal}</td>
+              <td style="font-weight:700;">
+                <span style="margin-right:6px;">${t.icon}</span> 
+                <span style="color:${t.color};">${t.name}</span>
+              </td>
+              <td style="text-align:center; font-family:'Orbitron'; font-weight:700; color:#05ffa1;">${t.wins}x</td>
+              <td style="text-align:right; font-family:'Orbitron'; font-weight:800; color:#ffd700;">${t.highestScore} pts</td>
+            </tr>
+          `;
+        }).join('');
+      }
+
+      const histList = document.getElementById('sb-history-container');
+      if (histList) {
+        if (filteredHistory.length === 0) {
+          histList.innerHTML = `
+            <div style="text-align:center; padding:18px; color:#64748b; font-size:0.85rem; border:1px dashed #334155; border-radius:10px;">
+              Tiada rekod perlawanan ditemui untuk tapisan ini.<br>
+              <span style="font-size:0.75rem; color:#94a3b8;">Main dan tamatkan kuiz 10 soalan untuk rekod keputusan secara automatik!</span>
+            </div>
+          `;
+        } else {
+          histList.innerHTML = filteredHistory.map(m => {
+            const isTie = m.winner === 'Seri';
+            return `
+              <div class="sb-history-item">
+                <div>
+                  <div style="font-weight:700; margin-bottom:2px;">
+                    <span style="color:#38bdf8; font-size:0.72rem; border:1px solid #0284c7; padding:1px 6px; border-radius:4px; margin-right:6px;">${m.room}</span>
+                    <span>${m.team1} (${m.score1})</span> 
+                    <span style="color:#94a3b8; margin:0 4px;">vs</span> 
+                    <span>${m.team2} (${m.score2})</span>
+                  </div>
+                  <div style="font-size:0.72rem; color:#64748b;">📅 ${m.timestamp}</div>
+                </div>
+                <div style="text-align:right;">
+                  ${isTie 
+                    ? '<span style="color:#f59e0b; font-weight:700; font-size:0.8rem;">🤝 SERI</span>' 
+                    : `<span style="color:#05ffa1; font-weight:800; font-size:0.85rem;">👑 ${m.winner}</span>`
+                  }
+                </div>
+              </div>
+            `;
+          }).join('');
+        }
+      }
+    }
+
+    // ==========================================
+    // PENGURUSAN REKOD SOALAN SALAH (ULANGKAJI)
+    // ==========================================
+    function filterReviewQuestions(kelas) {
+      reviewFilterClass = kelas;
+      const fAll = document.getElementById('rev-filter-all');
+      const f2t = document.getElementById('rev-filter-2t');
+      const f1t = document.getElementById('rev-filter-1t');
+      if (fAll) fAll.classList.toggle('active', kelas === 'ALL');
+      if (f2t) f2t.classList.toggle('active', kelas === '2 TIRMIZI');
+      if (f1t) f1t.classList.toggle('active', kelas === '1 TIRMIZI');
+      renderReviewQuestionsView();
+    }
+
+    function getReviewQuestions() {
+      try {
+        return JSON.parse(localStorage.getItem('ar_quiz_wrong_questions') || '[]');
+      } catch(e) {
+        return [];
+      }
+    }
+
+    function clearReviewQuestions() {
+      const records = getReviewQuestions();
+      if (records.length === 0) {
+        alert("Tiada rekod soalan salah untuk dipadam.");
+        return;
+      }
+      if (confirm("Adakah anda pasti mahu memadam semua rekod soalan yang salah dijawab?")) {
+        localStorage.removeItem('ar_quiz_wrong_questions');
+        renderReviewQuestionsView();
+        alert("✅ Semua rekod soalan salah telah berjaya dipadam!");
+      }
+    }
+
+    function recordWrongQuestion(qIndex, failedRole, chosenIndex = null) {
+      const curQ = QUIZ_QUESTIONS[qIndex % QUIZ_QUESTIONS.length];
+      if (!curQ) return;
+
+      const room = currentRoomId || '2 TIRMIZI';
+      const teamName = (currentGameState && currentGameState.names && currentGameState.names[failedRole]) 
+        ? currentGameState.names[failedRole] 
+        : (failedRole === 'player1' ? 'Kumpulan Host' : 'Kumpulan Lawan');
+
+      const failedType = (chosenIndex === null) ? 'TIMEOUT' : 'WRONG_ANSWER';
+      const chosenText = (chosenIndex !== null && curQ.options[chosenIndex]) 
+        ? curQ.options[chosenIndex] 
+        : 'Masa 5s/15s tamat sebelum menjawab';
+
+      const entry = {
+        id: 'wq_' + Date.now() + '_' + Math.floor(Math.random() * 1000),
+        timestamp: new Date().toLocaleTimeString('ms-MY', { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+        room: room,
+        set: currentSetKey || 1,
+        qNum: (qIndex % QUIZ_QUESTIONS.length) + 1,
+        question: curQ.question,
+        options: curQ.options,
+        correctIndex: curQ.answer,
+        correctText: curQ.options[curQ.answer],
+        failedRole: failedRole,
+        failedTeamName: teamName,
+        failedType: failedType,
+        chosenIndex: chosenIndex,
+        chosenText: chosenText,
+        isKbat: !!curQ.isKbat
+      };
+
+      try {
+        let list = getReviewQuestions();
+        // Elakkan duplikasi segera untuk soalan dan kumpulan yang sama dalam 5 saat
+        const isDuplicate = list.some(item => 
+          item.question === entry.question && 
+          item.failedRole === entry.failedRole && 
+          item.room === entry.room &&
+          (Date.now() - (item._time || 0) < 5000)
+        );
+        if (!isDuplicate) {
+          entry._time = Date.now();
+          list.unshift(entry); // Letak paling terkini di atas
+          if (list.length > 50) list = list.slice(0, 50); // Maksimum 50 soalan salah terkini
+          localStorage.setItem('ar_quiz_wrong_questions', JSON.stringify(list));
+        }
+      } catch (e) {
+        console.error("Gagal simpan rekod soalan salah:", e);
+      }
+    }
+
+    function renderReviewQuestionsView() {
+      const allRecords = getReviewQuestions();
+      const filtered = (reviewFilterClass === 'ALL')
+        ? allRecords
+        : allRecords.filter(r => r.room === reviewFilterClass);
+
+      const countEl = document.getElementById('review-total-count');
+      if (countEl) countEl.innerText = `(${filtered.length} Soalan Direkod)`;
+
+      const container = document.getElementById('review-questions-container');
+      if (!container) return;
+
+      if (filtered.length === 0) {
+        container.innerHTML = `
+          <div style="text-align: center; padding: 26px 16px; color: #64748b; font-size: 0.88rem; border: 1px dashed #334155; border-radius: 12px; background: rgba(15, 23, 42, 0.4);">
+            <div style="font-size: 2rem; margin-bottom: 8px;">🎉</div>
+            <div style="font-weight: 700; color: #94a3b8; margin-bottom: 4px;">Tiada Soalan Salah Direkodkan!</div>
+            <span style="font-size: 0.78rem; color: #64748b;">
+              Bila murid menjawab salah atau masa tamat semasa perlawanan, soalan akan disimpan secara automatik di sini untuk sesi ulangkaji guru dan murid.
+            </span>
+          </div>
+        `;
+        return;
+      }
+
+      const optLetters = ['A', 'B', 'C', 'D'];
+      container.innerHTML = filtered.map((item, idx) => {
+        const kbatBadge = item.isKbat 
+          ? `<span style="background: rgba(245, 158, 11, 0.2); border: 1px solid #f59e0b; color: #fbbf24; font-size: 0.68rem; padding: 2px 8px; border-radius: 6px; font-weight: 800;">⭐ KBAT (15s)</span>` 
+          : `<span style="background: rgba(56, 189, 248, 0.15); border: 1px solid #0284c7; color: #38bdf8; font-size: 0.68rem; padding: 2px 8px; border-radius: 6px; font-weight: 700;">Set ${item.set} • Soalan ${item.qNum}</span>`;
+
+        const failReason = (item.failedType === 'TIMEOUT')
+          ? `<span style="color: #f97316;">⏱️ Masa 5s/15s Tamat (Tidak Menjawab)</span>`
+          : `<span>❌ Jawapan Dipilih: <b style="color: #fca5a5;">${item.chosenText}</b></span>`;
+
+        const optionsHtml = item.options.map((opt, oIdx) => {
+          const isCorrect = (oIdx === item.correctIndex);
+          const wasChosenWrong = (item.failedType !== 'TIMEOUT' && oIdx === item.chosenIndex);
+          let extraStyle = '';
+          let markIcon = '';
+          if (isCorrect) {
+            extraStyle = 'background: rgba(5, 255, 161, 0.18); border-color: #05ffa1; color: #a7f3d0; font-weight: 700;';
+            markIcon = ' <span style="color: #05ffa1; font-weight: 900; margin-left: 4px;">✓ JAWAPAN BETUL</span>';
+          } else if (wasChosenWrong) {
+            extraStyle = 'background: rgba(239, 68, 68, 0.2); border-color: #ef4444; color: #fca5a5;';
+            markIcon = ' <span style="color: #ef4444; font-weight: 800; margin-left: 4px;">✗ (Pilihan Murid)</span>';
+          }
+
+          return `
+            <div class="review-opt-item ${isCorrect ? 'is-correct' : ''}" style="${extraStyle}">
+              <b style="color: ${isCorrect ? '#05ffa1' : '#94a3b8'};">${optLetters[oIdx]}.</b> ${opt} ${markIcon}
+            </div>
+          `;
+        }).join('');
+
+        return `
+          <div class="review-card">
+            <div class="review-card-header">
+              <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
+                <span style="font-weight: 800; color: #f43f5e; font-size: 0.78rem;">#${idx + 1}</span>
+                <span class="sb-room-pill" style="font-size: 0.68rem; padding: 1px 7px;">${item.room}</span>
+                ${kbatBadge}
+              </div>
+              <div style="font-size: 0.72rem; color: #64748b;">🕒 ${item.timestamp}</div>
+            </div>
+
+            <div class="review-q-text">
+              ${item.question}
+            </div>
+
+            <div class="review-ans-box">
+              <div class="review-wrong-ans">
+                <span style="font-weight: 700; color: #ef4444;">Kumpulan: ${item.failedTeamName}</span>
+                <div style="margin-top: 2px;">${failReason}</div>
+              </div>
+              <div class="review-correct-ans">
+                <span style="font-weight: 800; color: #05ffa1;">Kunci Jawapan:</span> 
+                <b>${optLetters[item.correctIndex]}.</b> ${item.correctText}
+              </div>
+            </div>
+
+            <div style="font-size: 0.72rem; color: #94a3b8; font-weight: 700; margin-bottom: 5px; text-transform: uppercase;">
+              Pilihan Jawapan Untuk Ulangkaji Bersama:
+            </div>
+            <div class="review-all-options">
+              ${optionsHtml}
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function selectRoom(room) {
+      currentRoomId = room;
+      const input = document.getElementById('room-id-input');
+      if (input) input.value = room;
+      const btn2t = document.getElementById('btn-room-2t');
+      const btn1t = document.getElementById('btn-room-1t');
+      if (btn2t) btn2t.classList.toggle('active', room === '2 TIRMIZI');
+      if (btn1t) btn1t.classList.toggle('active', room === '1 TIRMIZI');
+    }
+
+    // Mod Permainan (Kamera AR vs Tanpa Kamera)
+    let playMode = 'touch'; // 'ar' atau 'touch' (Default: Tanpa Kamera)
+    let cameraInstance = null;
+    let touchRenderLoopId = null;
+
+    // Pemasa Masa Menjawab
+    const ANSWER_TIME_LIMIT = 5; // 5 saat masa menjawab (elak murid tekan melulu!)
+    let countdownInterval = null;
+    let lastTickedSecond = -1;
+
+    // AR Buzzer Circle Coordinates (Relative to Canvas 0.0 - 1.0)
+    const BUZZER_ZONE = {
+      x: 0.5,     // Tengah
+      y: 0.28,    // Bahagian atas skrin (mudah ditepuk tangan)
+      radius: 0.14 // Saiz zon sentuhan
+    };
+
+    function selectPlayMode(mode) {
+      playMode = mode;
+      document.getElementById('btn-mode-ar').classList.toggle('active', mode === 'ar');
+      document.getElementById('btn-mode-touch').classList.toggle('active', mode === 'touch');
+    }
+
+    function togglePlayMode() {
+      const targetMode = (playMode === 'ar') ? 'touch' : 'ar';
+      setPlayMode(targetMode);
+    }
+
+    function setPlayMode(mode) {
+      playMode = mode;
+      const btnToggle = document.getElementById('btn-toggle-mode');
+      if (btnToggle) {
+        btnToggle.innerText = (mode === 'ar') ? '📷 Mod: Kamera' : '🕹️ Mod: Tanpa Kamera';
+      }
+
+      const statusText = document.getElementById('ar-status-text');
+      const videoEl = document.getElementById('webcam-video');
+
+      if (mode === 'touch') {
+        if (cameraInstance) {
+          try { cameraInstance.stop(); } catch(e){}
+        }
+        videoEl.style.display = 'none';
+        BUZZER_ZONE.x = 0.5;
+        BUZZER_ZONE.y = 0.45;
+        BUZZER_ZONE.radius = 0.23; // Butang lebih besar & selesa disentuh
+        if (statusText) statusText.innerText = "🕹️ Mod Butang: Sentuh Skrin / Tekan Spacebar!";
+        startTouchLoop();
+      } else {
+        videoEl.style.display = 'block';
+        BUZZER_ZONE.x = 0.5;
+        BUZZER_ZONE.y = 0.28;
+        BUZZER_ZONE.radius = 0.14;
+        stopTouchLoop();
+        initWebcamAR();
+      }
+    }
+
+    function startTouchLoop() {
+      stopTouchLoop();
+
+      function frame() {
+        const w = canvasElement.clientWidth || 640;
+        const h = canvasElement.clientHeight || 480;
+        canvasElement.width = w;
+        canvasElement.height = h;
+
+        canvasCtx.save();
+        canvasCtx.clearRect(0, 0, w, h);
+
+        // Latar Belakang Cyber Arena
+        const bgGrad = canvasCtx.createRadialGradient(w/2, h/2, 30, w/2, h/2, Math.max(w, h));
+        bgGrad.addColorStop(0, '#0f172a');
+        bgGrad.addColorStop(1, '#020617');
+        canvasCtx.fillStyle = bgGrad;
+        canvasCtx.fillRect(0, 0, w, h);
+
+        // Grid Neon Ambient
+        canvasCtx.strokeStyle = 'rgba(0, 242, 254, 0.08)';
+        canvasCtx.lineWidth = 1;
+        const step = 40;
+        for (let gx = 0; gx < w; gx += step) {
+          canvasCtx.beginPath();
+          canvasCtx.moveTo(gx, 0);
+          canvasCtx.lineTo(gx, h);
+          canvasCtx.stroke();
+        }
+        for (let gy = 0; gy < h; gy += step) {
+          canvasCtx.beginPath();
+          canvasCtx.moveTo(0, gy);
+          canvasCtx.lineTo(w, gy);
+          canvasCtx.stroke();
+        }
+
+        // Lukis Buzzer Gergasi di Tengah
+        const buzzerPixelX = BUZZER_ZONE.x * w;
+        const buzzerPixelY = BUZZER_ZONE.y * h;
+        const buzzerPixelR = BUZZER_ZONE.radius * Math.min(w, h);
+
+        drawHologramBuzzer(buzzerPixelX, buzzerPixelY, buzzerPixelR, isBuzzerCooldown);
+
+        // Teks Petunjuk Bawah
+        canvasCtx.font = "bold 12px 'Orbitron', sans-serif";
+        canvasCtx.fillStyle = "#94a3b8";
+        canvasCtx.textAlign = "center";
+        canvasCtx.fillText("👉 TEKAN BUTANG ATAU [SPACEBAR] DI PAPAN KEKUNCI 👈", w / 2, h - 30);
+
+        canvasCtx.restore();
+
+        touchRenderLoopId = requestAnimationFrame(frame);
+      }
+
+      touchRenderLoopId = requestAnimationFrame(frame);
+    }
+
+    function stopTouchLoop() {
+      if (touchRenderLoopId) {
+        cancelAnimationFrame(touchRenderLoopId);
+        touchRenderLoopId = null;
+      }
+    }
+
+    // Fullscreen Toggle Helper
+    function toggleFullscreen() {
+      if (!document.fullscreenElement) {
+        document.documentElement.requestFullscreen().then(() => {
+          updateFullscreenUI(true);
+        }).catch(err => {
+          console.warn('Fullscreen error:', err);
+        });
+      } else {
+        if (document.exitFullscreen) {
+          document.exitFullscreen().then(() => {
+            updateFullscreenUI(false);
+          });
+        }
+      }
+    }
+
+    function updateFullscreenUI(isFull) {
+      const text = isFull ? '🗗 Keluar Penuh' : '⛶ Skrin Penuh';
+      const btn1 = document.getElementById('btn-fullscreen');
+      const btn2 = document.getElementById('btn-lobby-fullscreen');
+      if (btn1) btn1.innerHTML = text;
+      if (btn2) btn2.innerHTML = text;
+    }
+
+    document.addEventListener('fullscreenchange', () => {
+      updateFullscreenUI(!!document.fullscreenElement);
+    });
+
+    function selectRole(role) {
+      myRole = role;
+      document.getElementById('btn-role-p1').classList.toggle('active', role === 'player1');
+      document.getElementById('btn-role-p2').classList.toggle('active', role === 'player2');
+      const nameInput = document.getElementById('player-name-input');
+      const currentVal = nameInput ? nameInput.value : '';
+      if (role === 'player2' && (currentVal === 'BoBoiBoy Halilintar' || !currentVal)) {
+        selectTeamName('BoBoiBoy Taufan');
+      } else if (role === 'player1' && (currentVal === 'BoBoiBoy Taufan' || !currentVal)) {
+        selectTeamName('BoBoiBoy Halilintar');
+      }
+    }
+
+    // ==========================================
+    // 4. SAMBUNGAN FIREBASE REALTIME DB
+    // ==========================================
+    const DEFAULT_CONFIG = {
+      apiKey: "AIzaSyDemoPlaceholder",
+      authDomain: "kuiz-ar-demo.firebaseapp.com",
+      databaseURL: "https://kuiz-ar-demo-default-rtdb.firebaseio.com",
+      projectId: "kuiz-ar-demo"
+    };
+
+    function initFirebase() {
+      const stored = localStorage.getItem('ar_quiz_firebase_config');
+      const config = stored ? JSON.parse(stored) : DEFAULT_CONFIG;
+      
+      try {
+        if (!firebase.apps.length) {
+          firebase.initializeApp(config);
+        }
+        dbRef = firebase.database();
+        console.log("Firebase initialized berjaya!");
+      } catch (err) {
+        console.warn("Firebase guna mod placeholder/offline:", err);
+      }
+    }
+
+    function openConfigModal() {
+      const stored = localStorage.getItem('ar_quiz_firebase_config') || JSON.stringify(DEFAULT_CONFIG, null, 2);
+      document.getElementById('firebase-json-input').value = stored;
+      document.getElementById('config-modal').style.display = 'flex';
+    }
+
+    function closeConfigModal() {
+      document.getElementById('config-modal').style.display = 'none';
+    }
+
+    function saveFirebaseConfig() {
+      try {
+        const text = document.getElementById('firebase-json-input').value;
+        const parsed = JSON.parse(text);
+        localStorage.setItem('ar_quiz_firebase_config', JSON.stringify(parsed));
+        alert("Konfigurasi Firebase berjaya disimpan! Halaman akan dimuat semula.");
+        location.reload();
+      } catch (e) {
+        alert("Format JSON tidak sah! Sila semak semula simbol koma dan kurungan.");
+      }
+    }
+
+    // ==========================================
+    // 5. MULAKAN PERMAINAN & SINKRONISASI
+    // ==========================================
+    function startGame() {
+      myName = document.getElementById('player-name-input').value.trim() || myRole;
+      currentRoomId = (document.getElementById('room-id-input') ? document.getElementById('room-id-input').value.trim().toUpperCase() : '') || '2 TIRMIZI';
+      
+      document.getElementById('lobby-screen').style.display = 'none';
+      document.getElementById('display-room').innerText = `KELAS: ${currentRoomId}`;
+
+      // Tandakan kad pemain yang mewakili diri sendiri
+      document.getElementById('card-p1').classList.toggle('is-you', myRole === 'player1');
+      document.getElementById('card-p2').classList.toggle('is-you', myRole === 'player2');
+
+      if (myRole === 'player1') {
+        document.getElementById('host-actions').style.display = 'flex';
+      }
+
+      // Jika Host atau pemain bersedia, pilih set soalan secara rawak (tidak berulang berturut-turut)
+      if (myRole === 'player1') {
+        randomizeNewQuestionSet();
+      }
+
+      // Mulakan paparan soalan serta-merta (Pasti berfungsi tanpa menunggu rangkaian)
+      simulateOfflineState();
+
+      // Mulakan Mod Permainan (Kamera AR atau Butang Skrin)
+      setPlayMode(playMode);
+
+      // Sambung ke Firebase Room jika konfigurasi sebenar wujud
+      const hasRealFirebase = !!localStorage.getItem('ar_quiz_firebase_config');
+
+      if (dbRef && hasRealFirebase) {
+        const cleanRoom = currentRoomId.replace(/[^a-zA-Z0-9_-]/g, '_');
+        roomRef = dbRef.ref(`rooms/${cleanRoom}`);
+
+        // Jika Host (Pemain 1), set struktur awal jika bilik baru atau kemas kini setKey terkini
+        if (myRole === 'player1') {
+          roomRef.child('meta').transaction((current) => {
+            if (!current) {
+              return {
+                createdAt: Date.now(),
+                setKey: currentSetKey,
+                qIndex: 0,
+                lockedBy: null,
+                scores: { player1: 0, player2: 0 },
+                names: { 
+                  player1: myName, 
+                  player2: (myName === "BoBoiBoy Taufan" ? "BoBoiBoy Halilintar" : "BoBoiBoy Taufan") 
+                }
+              };
+            }
+            return {
+              ...current,
+              setKey: currentSetKey
+            };
+          });
+        }
+
+        // Kemas kini nama saya di bilik
+        roomRef.child(`meta/names/${myRole}`).set(myName);
+
+        // Dengar Perubahan Bilik secara LIVE (Real-Time Listener)
+        roomRef.child('meta').on('value', (snapshot) => {
+          const data = snapshot.val();
+          if (data) {
+            if (data.setKey && String(data.setKey) !== String(currentSetKey)) {
+              applyQuestionSet(data.setKey);
+            }
+            updateGameUI(data);
+          }
+        });
+      }
+    }
+
+    function simulateOfflineState() {
+      const oppDefault = (myName === 'BoBoiBoy Taufan') ? 'BoBoiBoy Halilintar' : 'BoBoiBoy Taufan';
+      updateGameUI({
+        qIndex: 0,
+        lockedBy: null,
+        scores: { player1: 0, player2: 0 },
+        names: { 
+          player1: (myRole === 'player1') ? myName : oppDefault, 
+          player2: (myRole === 'player2') ? myName : oppDefault 
+        }
+      });
+    }
+
+    // ==========================================
+    // 6. KEMAS KINI UI BERDASARKAN DATA CLOUD
+    // ==========================================
+    function updateGameUI(state) {
+      currentGameState = state;
+      const qIndex = state.qIndex || 0;
+
+      // Kemas kini Nama & Markah
+      const name1 = (state.names && state.names.player1) || "Kumpulan 1";
+      const name2 = (state.names && state.names.player2) || "Kumpulan 2";
+      const score1 = (state.scores && state.scores.player1) || 0;
+      const score2 = (state.scores && state.scores.player2) || 0;
+
+      document.getElementById('name-p1').innerText = name1;
+      document.getElementById('name-p2').innerText = name2;
+      document.getElementById('score-p1').innerText = score1;
+      document.getElementById('score-p2').innerText = score2;
+
+      // Penentuan Kumpulan Tertinggi (Leaderboard Scoreboard)
+      const leaderBanner = document.getElementById('leader-banner-text');
+      const cardP1 = document.getElementById('card-p1');
+      const cardP2 = document.getElementById('card-p2');
+      const badgeP1 = document.getElementById('rank-badge-p1');
+      const badgeP2 = document.getElementById('rank-badge-p2');
+
+      if (score1 > score2) {
+        const diff = score1 - score2;
+        leaderBanner.innerHTML = `👑 <b>${name1.toUpperCase()}</b> PALING TINGGI (Mendahului +${diff} mata!)`;
+        cardP1.classList.add('is-leader');
+        cardP2.classList.remove('is-leader');
+        badgeP1.className = 'rank-badge rank-1';
+        badgeP1.innerHTML = '🥇 1ST (TERTINGGI)';
+        badgeP2.className = 'rank-badge rank-2';
+        badgeP2.innerHTML = '🥈 2ND';
+      } else if (score2 > score1) {
+        const diff = score2 - score1;
+        leaderBanner.innerHTML = `👑 <b>${name2.toUpperCase()}</b> PALING TINGGI (Mendahului +${diff} mata!)`;
+        cardP2.classList.add('is-leader');
+        cardP1.classList.remove('is-leader');
+        badgeP2.className = 'rank-badge rank-1';
+        badgeP2.innerHTML = '🥇 1ST (TERTINGGI)';
+        badgeP1.className = 'rank-badge rank-2';
+        badgeP1.innerHTML = '🥈 2ND';
+      } else {
+        leaderBanner.innerHTML = `🤝 <b>KEDUDUKAN SERI:</b> Kedua-dua kumpulan terikat dengan <b>${score1} mata</b>.`;
+        cardP1.classList.remove('is-leader');
+        cardP2.classList.remove('is-leader');
+        badgeP1.className = 'rank-badge rank-tie';
+        badgeP1.innerHTML = '🤝 SERI';
+        badgeP2.className = 'rank-badge rank-tie';
+        badgeP2.innerHTML = '🤝 SERI';
+      }
+
+      // Semak jika semua 10 soalan telah selesai
+      if (state.isFinished || qIndex >= QUIZ_QUESTIONS.length) {
+        recordMatchToScoreboard(state);
+
+        const banner = document.getElementById('buzzer-banner');
+        banner.style.display = 'block';
+        banner.className = 'buzzer-alert you-buzzed';
+
+        let winText = '';
+        if (score1 > score2) {
+          winText = `🏆 TAHNIAH ${name1.toUpperCase()} JUARA KESELURUHAN (+${score1} MATA)!`;
+        } else if (score2 > score1) {
+          winText = `🏆 TAHNIAH ${name2.toUpperCase()} JUARA KESELURUHAN (+${score2} MATA)!`;
+        } else {
+          winText = `🤝 KEPUTUSAN SERI HEBAT! Kedua-dua kumpulan seri dengan ${score1} mata!`;
+        }
+        banner.innerHTML = winText;
+
+        document.getElementById('q-counter').innerHTML = `🎉 TAMAT KUIZ 10 SOALAN!`;
+        document.getElementById('q-text').innerHTML = `
+          <div style="font-size:1.5rem; color:#ffd700; margin-bottom:12px; font-weight:800;">${winText}</div>
+          <div style="font-size:1rem; color:#cbd5e1; margin-bottom:18px;">
+            Keputusan Akhir: <b>${name1}</b> (${score1} mata) vs <b>${name2}</b> (${score2} mata)
+          </div>
+          <div style="display: flex; gap: 8px; max-width: 460px; margin: 0 auto; flex-wrap: wrap;">
+            <button class="btn-primary" style="flex: 1; min-width: 130px; padding: 12px; font-size: 0.92rem;" onclick="resetGame()">MAIN SEMULA 🔁</button>
+            <button class="btn-secondary" style="flex: 1; min-width: 130px; padding: 12px; font-size: 0.88rem;" onclick="returnToMainMenu('scoreboard')">🏆 SCOREBOARD</button>
+            <button class="btn-secondary" style="flex: 1; min-width: 140px; padding: 12px; font-size: 0.88rem; background: rgba(244, 63, 94, 0.2); border: 1px solid #f43f5e; color: #fecdd3;" onclick="returnToMainMenu('review')">📖 ULANGKAJI SALAH</button>
+          </div>
+        `;
+
+        document.getElementById('timer-box').style.display = 'none';
+        stopCountdownTimer();
+        disableAnswerButtons(true);
+        for (let i = 0; i < 4; i++) {
+          const btn = document.getElementById(`ans-${i}`);
+          btn.style.display = 'none';
+        }
+        return;
+      }
+
+      // Pastikan butang jawapan dipaparkan jika belum tamat
+      for (let i = 0; i < 4; i++) {
+        const btn = document.getElementById(`ans-${i}`);
+        btn.style.display = 'block';
+      }
+
+      const curQ = QUIZ_QUESTIONS[qIndex % QUIZ_QUESTIONS.length];
+
+      // Kemas kini Teks Soalan & Lencana Jenis Buzzer (Biasa vs KBAT)
+      const isKbat = curQ && curQ.isKbat;
+      const counterEl = document.getElementById('q-counter');
+
+      if (isKbat) {
+        counterEl.innerHTML = `🌟 SOALAN ${qIndex + 1} / ${QUIZ_QUESTIONS.length} <span style="color:#ffd700; text-shadow:0 0 10px #ffd700; margin-left: 6px;">[KBAT: GOLDEN BUZZER | 15 SAAT | +20 MATA]</span>`;
+        document.getElementById('q-text').style.color = '#fffbe0';
+      } else {
+        counterEl.innerHTML = `🔴 SOALAN ${qIndex + 1} / ${QUIZ_QUESTIONS.length} <span style="color:#ff2a6d; text-shadow:0 0 10px #ff2a6d; margin-left: 6px;">[BIASA: RED BUZZER | 5 SAAT | +10 MATA]</span>`;
+        document.getElementById('q-text').style.color = '#ffffff';
+      }
+      document.getElementById('q-text').innerText = curQ.question;
+
+      // Kemas kini Pilihan Jawapan
+      for (let i = 0; i < 4; i++) {
+        const btn = document.getElementById(`ans-${i}`);
+        btn.innerText = `${String.fromCharCode(65 + i)}. ${curQ.options[i]}`;
+        if (!state.showAnswer) {
+          btn.className = 'ans-btn'; // Reset warna jika bukan mod pamer jawapan
+        }
+      }
+
+      // Logik Buzzer Lockout & Pemasa
+      const banner = document.getElementById('buzzer-banner');
+      const timerBox = document.getElementById('timer-box');
+      const isLocked = state.lockedBy !== null && state.lockedBy !== undefined;
+
+      if (state.showAnswer) {
+        // Paparkan jawapan yang betul dengan warna HIJAU apabila kedua-dua kumpulan salah
+        banner.style.display = 'block';
+        banner.className = 'buzzer-alert opponent-buzzed';
+        const correctOptLetter = String.fromCharCode(65 + curQ.answer);
+        banner.innerHTML = `❌ KEDUA-DUA KUMPULAN SALAH! <br>Jawapan Sebenar: <b style="color:var(--accent-green);">${correctOptLetter}. ${curQ.options[curQ.answer]}</b>`;
+        
+        // Warnakan butang jawapan yang betul kepada HIJAU
+        const correctBtn = document.getElementById(`ans-${curQ.answer}`);
+        if (correctBtn) correctBtn.classList.add('correct');
+
+        timerBox.style.display = 'none';
+        stopCountdownTimer();
+        disableAnswerButtons(true);
+      } else if (!isLocked) {
+        banner.style.display = 'none';
+        timerBox.style.display = 'none';
+        stopCountdownTimer();
+        disableAnswerButtons(true); // Belum ada sesiapa tekan buzzer, butang ditutup!
+      } else {
+        const iWonTheBuzzer = (state.lockedBy === myRole);
+        const winnerName = (state.names && state.names[state.lockedBy]) || state.lockedBy;
+
+        timerBox.style.display = 'flex';
+
+        if (iWonTheBuzzer) {
+          banner.className = 'buzzer-alert you-buzzed';
+          banner.style.display = 'block';
+          if (state.isSteal) {
+            banner.innerHTML = `🔄 <b>PELUANG KUMPULAN ANDA (STEAL)!</b> Lawan gagal, jawab sekarang! (+${isKbat ? 20 : 10} mata)`;
+          } else {
+            banner.innerText = isKbat 
+              ? `🌟 ANDA TEKAN GOLDEN BUZZER! JAWAB SEBELUM MASA TAMAT (15s)! (+20 MATA)`
+              : `🔴 ANDA TEKAN RED BUZZER! JAWAB SEBELUM MASA TAMAT (5s)! (+10 MATA)`;
+          }
+          disableAnswerButtons(false); // Buka butang jawapan untuk kumpulan ini!
+        } else {
+          banner.className = 'buzzer-alert opponent-buzzed';
+          banner.style.display = 'block';
+          if (state.isSteal) {
+            banner.innerHTML = `🔒 <b>GILIRAN ${winnerName.toUpperCase()} MENJAWAB (STEAL)!</b> Sila tunggu...`;
+          } else {
+            banner.innerText = `🔒 ${winnerName.toUpperCase()} TEKAN DAHULU! TUNGGU MASA TAMAT...`;
+          }
+          disableAnswerButtons(true); // Lawan terkunci!
+        }
+
+        // Mulakan atau selaraskan pemasa countdown
+        startCountdownTimer(state.lockedAt || Date.now());
+      }
+    }
+
+    function disableAnswerButtons(disabled) {
+      for (let i = 0; i < 4; i++) {
+        document.getElementById(`ans-${i}`).disabled = disabled;
+      }
+    }
+
+    // ==========================================
+    // 7. PEMASA COUNTDOWN (SYNCHRONIZED TIMER)
+    // ==========================================
+    function startCountdownTimer(lockedAt) {
+      stopCountdownTimer();
+      lastTickedSecond = -1;
+
+      const qIndex = currentGameState ? (currentGameState.qIndex || 0) : 0;
+      const curQ = QUIZ_QUESTIONS[qIndex % QUIZ_QUESTIONS.length];
+      const timeLimitSec = (curQ && curQ.timeLimit) ? curQ.timeLimit : 5;
+      const isKbat = !!(curQ && curQ.isKbat);
+
+      const timerLabel = document.getElementById('timer-label');
+      if (timerLabel) {
+        timerLabel.innerText = isKbat ? '⏱️ MASA MENJAWAB (KBAT 15s):' : '⏱️ MASA MENJAWAB (5s):';
+      }
+
+      const timerText = document.getElementById('timer-text');
+      const timerBar = document.getElementById('timer-bar');
+
+      function tick() {
+        const now = Date.now();
+        const elapsedMs = now - lockedAt;
+        const totalMs = timeLimitSec * 1000;
+        const remainingMs = Math.max(0, totalMs - elapsedMs);
+        const sec = Math.ceil(remainingMs / 1000);
+        const pct = Math.max(0, Math.min(100, (remainingMs / totalMs) * 100));
+
+        timerText.innerText = `${sec}s`;
+        timerBar.style.width = `${pct}%`;
+
+        // Kesan bunyi detik setiap saat
+        if (sec !== lastTickedSecond && sec > 0) {
+          lastTickedSecond = sec;
+          if (sec <= 3) {
+            timerText.classList.add('timer-urgent');
+            playBeep(980, 0.08, 'sawtooth'); // Detik cemas laju
+          } else {
+            timerText.classList.remove('timer-urgent');
+            playBeep(520, 0.04, 'sine'); // Detik biasa
+          }
+        }
+
+        // Masa Tamat!
+        if (remainingMs <= 0) {
+          stopCountdownTimer();
+          handleTimeExpired();
+        }
+      }
+
+      tick();
+      countdownInterval = setInterval(tick, 100);
+    }
+
+    function stopCountdownTimer() {
+      if (countdownInterval) {
+        clearInterval(countdownInterval);
+        countdownInterval = null;
+      }
+    }
+
+    // Kegagalan Giliran (Sama ada Masa Tamat atau Jawab Salah)
+    function handleTurnFailure(failedRole, chosenIndex = null) {
+      stopCountdownTimer();
+      soundWrong();
+      disableAnswerButtons(true);
+
+      const qIndex = currentGameState ? (currentGameState.qIndex || 0) : 0;
+      const curQ = QUIZ_QUESTIONS[qIndex % QUIZ_QUESTIONS.length];
+      const isKbat = curQ && curQ.isKbat;
+      const penalty = isKbat ? 10 : 5;
+      const hasRealFirebase = !!localStorage.getItem('ar_quiz_firebase_config');
+
+      // Jika ada butang salah ditekan, tandakan merah
+      if (chosenIndex !== null) {
+        const wrongBtn = document.getElementById(`ans-${chosenIndex}`);
+        if (wrongBtn) wrongBtn.classList.add('wrong');
+      }
+
+      // Rekod soalan salah ke localStorage untuk sesi ulangkaji guru & murid
+      try {
+        recordWrongQuestion(qIndex, failedRole, chosenIndex);
+      } catch (err) {
+        console.error("Ralat rekod soalan salah:", err);
+      }
+
+      // Potong markah kumpulan yang gagal
+      if (roomRef && hasRealFirebase) {
+        roomRef.child(`meta/scores/${failedRole}`).transaction(s => Math.max(0, (s || 0) - penalty));
+      } else if (currentGameState) {
+        currentGameState.scores[failedRole] = Math.max(0, (currentGameState.scores[failedRole] || 0) - penalty);
+      }
+
+      const isAlreadySteal = !!(currentGameState && currentGameState.isSteal);
+
+      if (!isAlreadySteal) {
+        // PELUANG KEPADA KUMPULAN SETERUSNYA (STEAL)!
+        const opponentRole = (failedRole === 'player1') ? 'player2' : 'player1';
+
+        const updateData = {
+          lockedBy: opponentRole,
+          lockedAt: Date.now(),
+          isSteal: true,
+          showAnswer: false
+        };
+
+        if (roomRef && hasRealFirebase) {
+          roomRef.child('meta').update(updateData);
+        } else if (currentGameState) {
+          Object.assign(currentGameState, updateData);
+          updateGameUI(currentGameState);
+        }
+      } else {
+        // KEDUA-DUA KUMPULAN GAGAL! TUNJUKKAN JAWAPAN BETUL DENGAN HIJAU!
+        const updateData = {
+          lockedBy: null,
+          lockedAt: null,
+          isSteal: false,
+          showAnswer: true
+        };
+
+        if (roomRef && hasRealFirebase) {
+          roomRef.child('meta').update(updateData);
+        } else if (currentGameState) {
+          Object.assign(currentGameState, updateData);
+          updateGameUI(currentGameState);
+        }
+
+        // Selepas 3 saat, bergerak ke soalan seterusnya secara automatik
+        setTimeout(() => {
+          if (myRole === 'player1' || !hasRealFirebase) {
+            nextQuestion();
+          }
+        }, 3000);
+      }
+    }
+
+    function handleTimeExpired() {
+      const lockedPlayer = currentGameState ? currentGameState.lockedBy : myRole;
+      handleTurnFailure(lockedPlayer, null);
+    }
+
+    // ==========================================
+    // 8. LOGIK TEKAN BUZZER (FIRST-COME, FIRST-SERVED)
+    // ==========================================
+    function triggerBuzzerPress() {
+      if (isBuzzerCooldown) return;
+      if (currentGameState && currentGameState.lockedBy) return; // Sudah dikunci oleh sesiapa
+      if (currentGameState && currentGameState.showAnswer) return; // Sedang tunjuk jawapan betul
+
+      const qIndex = currentGameState ? (currentGameState.qIndex || 0) : 0;
+      const curQ = QUIZ_QUESTIONS[qIndex % QUIZ_QUESTIONS.length];
+      const isKbat = curQ && curQ.isKbat;
+
+      soundBuzzer(isKbat);
+      isBuzzerCooldown = true;
+      setTimeout(() => { isBuzzerCooldown = false; }, 1500);
+
+      const now = Date.now();
+      const hasRealFirebase = !!localStorage.getItem('ar_quiz_firebase_config');
+
+      if (roomRef && hasRealFirebase) {
+        // Transaksi atomik Firebase
+        roomRef.child('meta').transaction((meta) => {
+          if (meta) {
+            if (meta.lockedBy === null || meta.lockedBy === undefined) {
+              meta.lockedBy = myRole;
+              meta.lockedAt = now;
+              meta.isSteal = false;
+              meta.showAnswer = false;
+              return meta;
+            }
+          }
+          return meta;
+        });
+      } else {
+        // Mod Tempatan / Offline
+        if (!currentGameState) {
+          currentGameState = {
+            qIndex: 0,
+            lockedBy: null,
+            scores: { player1: 0, player2: 0 },
+            names: { player1: myName, player2: "Kumpulan 2" }
+          };
+        }
+        currentGameState.lockedBy = myRole;
+        currentGameState.lockedAt = now;
+        currentGameState.isSteal = false;
+        currentGameState.showAnswer = false;
+        updateGameUI(currentGameState);
+      }
+    }
+
+    // ==========================================
+    // 9. HANTAR JAWAPAN (SUBMIT ANSWER)
+    // ==========================================
+    function submitAnswer(chosenIndex) {
+      if (!currentGameState || currentGameState.lockedBy !== myRole) return;
+      if (currentGameState.showAnswer) return;
+
+      stopCountdownTimer();
+      disableAnswerButtons(true);
+
+      const qIndex = currentGameState.qIndex || 0;
+      const curQ = QUIZ_QUESTIONS[qIndex % QUIZ_QUESTIONS.length];
+      const isKbat = curQ && curQ.isKbat;
+      const pointsGain = isKbat ? 20 : 10;
+
+      const isCorrect = (chosenIndex === curQ.answer);
+      const chosenBtn = document.getElementById(`ans-${chosenIndex}`);
+      const hasRealFirebase = !!localStorage.getItem('ar_quiz_firebase_config');
+
+      if (isCorrect) {
+        // JAWAPAN TEPAT!
+        soundCorrect();
+        chosenBtn.classList.add('correct');
+        if (roomRef && hasRealFirebase) {
+          roomRef.child(`meta/scores/${myRole}`).transaction(s => (s || 0) + pointsGain);
+        } else {
+          currentGameState.scores[myRole] = (currentGameState.scores[myRole] || 0) + pointsGain;
+          updateGameUI(currentGameState);
+        }
+
+        // Beralih ke soalan seterusnya selepas 2 saat
+        setTimeout(() => {
+          if (myRole === 'player1' || !hasRealFirebase) {
+            nextQuestion();
+          } else if (roomRef && hasRealFirebase) {
+            roomRef.child('meta').update({
+              lockedBy: null,
+              lockedAt: null,
+              isSteal: false,
+              showAnswer: false
+            });
+          }
+        }, 2000);
+      } else {
+        // JAWAPAN SALAH! Kendalikan kegagalan giliran (pass turn atau tunjuk jawapan hijau)
+        handleTurnFailure(myRole, chosenIndex);
+      }
+    }
+
+    function nextQuestion() {
+      const hasRealFirebase = !!localStorage.getItem('ar_quiz_firebase_config');
+      if (roomRef && hasRealFirebase) {
+        roomRef.child('meta').transaction((state) => {
+          if (state) {
+            const nextIdx = (state.qIndex || 0) + 1;
+            if (nextIdx >= QUIZ_QUESTIONS.length) {
+              state.isFinished = true;
+            } else {
+              state.qIndex = nextIdx;
+            }
+            state.lockedBy = null;
+            state.lockedAt = null;
+            state.isSteal = false;
+            state.showAnswer = false;
+          }
+          return state;
+        });
+      } else if (currentGameState) {
+        const nextIdx = (currentGameState.qIndex || 0) + 1;
+        if (nextIdx >= QUIZ_QUESTIONS.length) {
+          currentGameState.isFinished = true;
+        } else {
+          currentGameState.qIndex = nextIdx;
+        }
+        currentGameState.lockedBy = null;
+        currentGameState.lockedAt = null;
+        currentGameState.isSteal = false;
+        currentGameState.showAnswer = false;
+        updateGameUI(currentGameState);
+      }
+    }
+
+    function resetGame() {
+      // Pilih set soalan baharu secara rawak (tidak berulang berturut-turut)
+      const newKey = randomizeNewQuestionSet();
+      const hasRealFirebase = !!localStorage.getItem('ar_quiz_firebase_config');
+
+      if (roomRef && hasRealFirebase) {
+        roomRef.child('meta').update({
+          setKey: newKey,
+          qIndex: 0,
+          lockedBy: null,
+          lockedAt: null,
+          isSteal: false,
+          showAnswer: false,
+          isFinished: false,
+          scores: { player1: 0, player2: 0 }
+        });
+      } else if (currentGameState) {
+        currentGameState.setKey = newKey;
+        currentGameState.qIndex = 0;
+        currentGameState.lockedBy = null;
+        currentGameState.lockedAt = null;
+        currentGameState.isSteal = false;
+        currentGameState.showAnswer = false;
+        currentGameState.isFinished = false;
+        currentGameState.scores = { player1: 0, player2: 0 };
+        updateGameUI(currentGameState);
+      }
+    }
+
+    // ==========================================
+    // 9. WEBCAM AR & MEDIAPIPE HAND TRACKING
+    // ==========================================
+    const videoElement = document.getElementById('webcam-video');
+    const canvasElement = document.getElementById('ar-canvas');
+    const canvasCtx = canvasElement.getContext('2d');
+    let buzzerShockwave = 0;
+
+    async function initWebcamAR() {
+      const statusText = document.getElementById('ar-status-text');
+      statusText.innerText = "Memulakan Webcam...";
+
+      try {
+        const hands = new Hands({
+          locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
+        });
+
+        hands.setOptions({
+          maxNumHands: 1,
+          modelComplexity: 1,
+          minDetectionConfidence: 0.5,
+          minTrackingConfidence: 0.5
+        });
+
+        hands.onResults(onHandResults);
+
+        cameraInstance = new Camera(videoElement, {
+          onFrame: async () => {
+            if (playMode === 'ar') {
+              await hands.send({ image: videoElement });
+            }
+          },
+          width: 640,
+          height: 480
+        });
+
+        await cameraInstance.start();
+        statusText.innerText = "AR Aktif: Tepuk Buzzer di Udara!";
+      } catch (err) {
+        console.warn("Gagal mulakan kamera/AR (Beralih ke mod tanpa kamera):", err);
+        setPlayMode('touch');
+      }
+    }
+
+    // Lukis Butang AR Hologram & Kesan Sentuhan Jari
+    function onHandResults(results) {
+      canvasElement.width = videoElement.videoWidth || 640;
+      canvasElement.height = videoElement.videoHeight || 480;
+
+      const w = canvasElement.width;
+      const h = canvasElement.height;
+
+      canvasCtx.save();
+      canvasCtx.clearRect(0, 0, w, h);
+
+      // Koordinat Zon Buzzer Maya
+      const buzzerPixelX = BUZZER_ZONE.x * w;
+      const buzzerPixelY = BUZZER_ZONE.y * h;
+      const buzzerPixelR = BUZZER_ZONE.radius * Math.min(w, h);
+
+      // 1. Semak jika jari menyentuh Buzzer
+      let isTouchingBuzzer = false;
+
+      if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+        const landmarks = results.multiHandLandmarks[0];
+
+        // Lukis rangka tangan futuristik (Glow Lines)
+        drawHandSkeleton(landmarks, w, h);
+
+        // Hujung Jari Telunjuk (Landmark 8) & Tapak Tangan (Landmark 9)
+        const indexTip = landmarks[8];
+        // Nota: Mirror X kerana paparan webcam diterbalikkan (scaleX -1)
+        const tipX = (1.0 - indexTip.x) * w;
+        const tipY = indexTip.y * h;
+
+        // Kira Jarak antara Jari & Pusat Buzzer
+        const dist = Math.hypot(tipX - buzzerPixelX, tipY - buzzerPixelY);
+
+        // Lukis penunjuk titik hujung jari
+        canvasCtx.beginPath();
+        canvasCtx.arc(tipX, tipY, 12, 0, 2 * Math.PI);
+        canvasCtx.fillStyle = '#05ffa1';
+        canvasCtx.shadowColor = '#05ffa1';
+        canvasCtx.shadowBlur = 15;
+        canvasCtx.fill();
+
+        if (dist < buzzerPixelR) {
+          isTouchingBuzzer = true;
+          buzzerShockwave = 30; // Cetus gelombang visual
+          triggerBuzzerPress();
+        }
+      }
+
+      // 2. Lukis Buzzer Hologram AR 3D
+      drawHologramBuzzer(buzzerPixelX, buzzerPixelY, buzzerPixelR, isTouchingBuzzer);
+
+      canvasCtx.restore();
+    }
+
+    // Lukis Buzzer Hologram (Red Buzzer untuk Soalan Biasa, Gold Buzzer untuk Soalan KBAT)
+    function drawHologramBuzzer(x, y, radius, isPressed) {
+      canvasCtx.save();
+
+      const qIndex = currentGameState ? (currentGameState.qIndex || 0) : 0;
+      const curQ = QUIZ_QUESTIONS[qIndex % QUIZ_QUESTIONS.length];
+      const isKbat = curQ && curQ.isKbat;
+      const activeBuzzerImg = isKbat ? imgGoldBuzzer : imgRedBuzzer;
+      const themeColor = isKbat ? "#ffd700" : "#ff2a6d";
+
+      // 1. Gelombang Shockwave jika ditekan
+      if (buzzerShockwave > 0) {
+        canvasCtx.beginPath();
+        canvasCtx.arc(x, y, radius + (30 - buzzerShockwave) * 2.8, 0, 2 * Math.PI);
+        canvasCtx.strokeStyle = isKbat 
+          ? `rgba(255, 215, 0, ${buzzerShockwave / 30})`
+          : `rgba(255, 42, 109, ${buzzerShockwave / 30})`;
+        canvasCtx.lineWidth = 6;
+        canvasCtx.shadowColor = themeColor;
+        canvasCtx.shadowBlur = 15;
+        canvasCtx.stroke();
+        buzzerShockwave--;
+      }
+
+      // 2. Status & Warna Aura
+      let glowColor = themeColor;
+      let statusBadge = isKbat ? "🌟 GOLDEN BUZZER (KBAT: +20)" : "🔴 RED BUZZER (BIASA: +10)";
+
+      if (currentGameState && currentGameState.lockedBy) {
+        if (currentGameState.lockedBy === myRole) {
+          glowColor = "#05ffa1";
+          statusBadge = "⚡ ANDA DAPAT MENJAWAB!";
+        } else {
+          glowColor = "#ff2a6d";
+          statusBadge = "🔒 TERKUNCI OLEH LAWAN!";
+        }
+      } else if (isPressed) {
+        glowColor = "#ffffff";
+      }
+
+      // 3. Lingkaran Aura Luar
+      canvasCtx.beginPath();
+      canvasCtx.arc(x, y, radius * 1.08, 0, 2 * Math.PI);
+      canvasCtx.lineWidth = isKbat ? 6 : 4;
+      canvasCtx.strokeStyle = glowColor;
+      canvasCtx.shadowColor = glowColor;
+      canvasCtx.shadowBlur = isKbat ? 25 : 18;
+      canvasCtx.stroke();
+
+      // 4. Lukis Gambar Buzzer 3D (PNG Transparent kemas tanpa latar kasar)
+      const scale = isPressed ? 0.92 : 1.0;
+      const pushDown = isPressed ? 5 : 0;
+      const drawR = radius * scale;
+
+      canvasCtx.save();
+
+      // Bayang 3D realistik terapung di bawah butang
+      canvasCtx.shadowColor = "rgba(0, 0, 0, 0.75)";
+      canvasCtx.shadowBlur = 25;
+      canvasCtx.shadowOffsetY = 12;
+
+      // Jika peranti lawan yang tekan, jadikan buzzer malap / terkunci
+      if (currentGameState && currentGameState.lockedBy && currentGameState.lockedBy !== myRole) {
+        canvasCtx.globalAlpha = 0.45;
+        canvasCtx.filter = "grayscale(70%)";
+      }
+
+      if (activeBuzzerImg.complete && activeBuzzerImg.naturalWidth > 0) {
+        canvasCtx.drawImage(
+          activeBuzzerImg,
+          x - drawR,
+          y - drawR + pushDown,
+          drawR * 2,
+          drawR * 2
+        );
+      } else {
+        // Fallback bulatan jika gambar belum selesai muat
+        canvasCtx.beginPath();
+        canvasCtx.arc(x, y + pushDown, drawR, 0, 2 * Math.PI);
+        canvasCtx.fillStyle = isKbat ? "#e6b800" : "#d90429";
+        canvasCtx.fill();
+      }
+
+      canvasCtx.restore();
+
+      // 5. Ikon Mangga jika Terkunci Lawan
+      if (currentGameState && currentGameState.lockedBy && currentGameState.lockedBy !== myRole) {
+        canvasCtx.save();
+        canvasCtx.font = "bold 36px 'Orbitron', sans-serif";
+        canvasCtx.fillStyle = "#ffffff";
+        canvasCtx.textAlign = "center";
+        canvasCtx.textBaseline = "middle";
+        canvasCtx.shadowColor = "#ff2a6d";
+        canvasCtx.shadowBlur = 18;
+        canvasCtx.fillText("🔒", x, y);
+        canvasCtx.restore();
+      }
+
+      // 5. Teks Lencana di Bawah Buzzer
+      canvasCtx.font = "bold 13px 'Orbitron', sans-serif";
+      canvasCtx.fillStyle = glowColor;
+      canvasCtx.textAlign = "center";
+      canvasCtx.textBaseline = "middle";
+      canvasCtx.shadowColor = glowColor;
+      canvasCtx.shadowBlur = 10;
+      canvasCtx.fillText(statusBadge, x, y + radius + 22);
+
+      canvasCtx.restore();
+    }
+
+    // Lukis Sambungan Rangka Tangan (Skeleton)
+    function drawHandSkeleton(landmarks, w, h) {
+      canvasCtx.save();
+      canvasCtx.strokeStyle = "rgba(0, 242, 254, 0.4)";
+      canvasCtx.lineWidth = 2;
+
+      const connections = [
+        [0,1],[1,2],[2,3],[3,4],
+        [0,5],[5,6],[6,7],[7,8],
+        [5,9],[9,10],[10,11],[11,12],
+        [9,13],[13,14],[14,15],[15,16],
+        [13,17],[17,18],[18,19],[19,20],[0,17]
+      ];
+
+      connections.forEach(([i, j]) => {
+        const pt1 = landmarks[i];
+        const pt2 = landmarks[j];
+        canvasCtx.beginPath();
+        canvasCtx.moveTo((1.0 - pt1.x) * w, pt1.y * h);
+        canvasCtx.lineTo((1.0 - pt2.x) * w, pt2.y * h);
+        canvasCtx.stroke();
+      });
+
+      canvasCtx.restore();
+    }
+
+    // Membolehkan klik/sentuh skrin (Sesuai untuk Mod Tanpa Kamera / Skrin Sentuh)
+    canvasElement.addEventListener('pointerdown', (e) => {
+      const rect = canvasElement.getBoundingClientRect();
+      const x = ((e.clientX - rect.left) / rect.width);
+      const y = ((e.clientY - rect.top) / rect.height);
+      const dist = Math.hypot(x - BUZZER_ZONE.x, y - BUZZER_ZONE.y);
+
+      // Jika dalam mod touch, sentuh mana-mana sekitar buzzer akan memicu butang
+      if (dist < BUZZER_ZONE.radius * 1.5 || playMode === 'touch') {
+        buzzerShockwave = 30;
+        triggerBuzzerPress();
+      }
+    });
+
+    // Papan Kekunci: Tekan [SPACEBAR] untuk tekan buzzer serta-merta
+    window.addEventListener('keydown', (e) => {
+      if (e.code === 'Space') {
+        const modal = document.getElementById('config-modal');
+        const lobby = document.getElementById('lobby-screen');
+        if (modal && modal.style.display !== 'flex' && lobby && lobby.style.display === 'none') {
+          e.preventDefault();
+          buzzerShockwave = 30;
+          triggerBuzzerPress();
+        }
+      }
+    });
+
+    // Mulakan Firebase semasa laman dibuka
+    window.addEventListener('DOMContentLoaded', initFirebase);
+  </script>
+</body>
+</html>
