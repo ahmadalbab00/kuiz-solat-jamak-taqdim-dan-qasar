@@ -190,20 +190,67 @@
 
     .role-btn {
       flex: 1;
-      padding: 12px;
+      padding: 12px 10px;
       background: #0f172a;
       border: 2px solid #334155;
-      border-radius: 10px;
+      border-radius: 12px;
       color: #cbd5e1;
       font-weight: 700;
       cursor: pointer;
       transition: all 0.2s;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 5px;
+      position: relative;
     }
     .role-btn.active {
       border-color: var(--primary);
       background: rgba(0, 242, 254, 0.15);
       color: #fff;
       box-shadow: 0 0 15px rgba(0, 242, 254, 0.3);
+    }
+
+    /* Status Online Indicator Badges */
+    .slot-status-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 0.72rem;
+      font-weight: 800;
+      padding: 2px 8px;
+      border-radius: 20px;
+      background: rgba(51, 65, 85, 0.6);
+      border: 1px solid #475569;
+      color: #94a3b8;
+      transition: all 0.3s ease;
+      letter-spacing: 0.5px;
+    }
+    .slot-status-pill.is-online {
+      background: rgba(5, 255, 161, 0.18) !important;
+      border-color: #05ffa1 !important;
+      color: #05ffa1 !important;
+      box-shadow: 0 0 10px rgba(5, 255, 161, 0.35);
+    }
+    .slot-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: #64748b;
+      display: inline-block;
+      transition: all 0.3s ease;
+    }
+    .slot-status-pill.is-online .slot-dot {
+      background: #05ffa1;
+      box-shadow: 0 0 8px #05ffa1;
+      animation: slotPulse 1.2s infinite;
+    }
+
+    @keyframes slotPulse {
+      0% { transform: scale(0.9); opacity: 0.8; }
+      50% { transform: scale(1.3); opacity: 1; }
+      100% { transform: scale(0.9); opacity: 0.8; }
     }
 
     .btn-primary {
@@ -926,10 +973,23 @@
 
 
           <div class="input-group">
-            <label>Pilih Slot Kumpulan</label>
+            <label style="display: flex; justify-content: space-between; align-items: center;">
+              <span>Pilih Slot Kumpulan</span>
+              <span id="lobby-sync-hint" style="font-size: 0.75rem; color: #38bdf8; font-weight: 500;">📡 Mengesan status live...</span>
+            </label>
             <div class="role-selector">
-              <button type="button" class="role-btn active" id="btn-role-p1" onclick="selectRole('player1')">HOST</button>
-              <button type="button" class="role-btn" id="btn-role-p2" onclick="selectRole('player2')">LAWAN</button>
+              <button type="button" class="role-btn active" id="btn-role-p1" onclick="selectRole('player1')">
+                <span style="font-size: 0.95rem;">HOST</span>
+                <span class="slot-status-pill" id="status-pill-p1">
+                  <span class="slot-dot"></span> <span id="status-text-p1">MENUNGGU</span>
+                </span>
+              </button>
+              <button type="button" class="role-btn" id="btn-role-p2" onclick="selectRole('player2')">
+                <span style="font-size: 0.95rem;">LAWAN</span>
+                <span class="slot-status-pill" id="status-pill-p2">
+                  <span class="slot-dot"></span> <span id="status-text-p2">MENUNGGU</span>
+                </span>
+              </button>
             </div>
           </div>
 
@@ -1685,6 +1745,7 @@ const ALL_QUESTIONS_PART_B = [{"question": "Haziq menaiki kereta dari Kuala Lump
       const btn1t = document.getElementById('btn-room-1t');
       if (btn2t) btn2t.classList.toggle('active', room === '2 TIRMIZI');
       if (btn1t) btn1t.classList.toggle('active', room === '1 TIRMIZI');
+      initLobbyPresenceListener();
     }
 
     // Mod Permainan (Kamera AR vs Tanpa Kamera)
@@ -1849,6 +1910,7 @@ const ALL_QUESTIONS_PART_B = [{"question": "Haziq menaiki kereta dari Kuala Lump
       } else if (role === 'player1' && (currentVal === 'BoBoiBoy Taufan' || !currentVal)) {
         selectTeamName('BoBoiBoy Halilintar');
       }
+      sendPresenceHeartbeat();
     }
 
     // ==========================================
@@ -1869,16 +1931,123 @@ const ALL_QUESTIONS_PART_B = [{"question": "Haziq menaiki kereta dari Kuala Lump
       return (typeof firebase !== 'undefined' && !!dbRef);
     }
 
+    // ==========================================
+    // SISTEM PENGESANAN STATUS ONLINE DI LOBBY (PRESENCE)
+    // ==========================================
+    let lobbyPresenceRef = null;
+    let lobbyPresenceListener = null;
+
+    function getCleanRoomId() {
+      const room = currentRoomId || '2 TIRMIZI';
+      return room.replace(/[^a-zA-Z0-9_-]/g, '_');
+    }
+
+    function initLobbyPresenceListener() {
+      if (!dbRef || !isFirebaseConfigured()) {
+        const hintEl = document.getElementById('lobby-sync-hint');
+        if (hintEl) hintEl.innerText = '📡 Mod Luar Talian (Offline)';
+        return;
+      }
+
+      const cleanRoom = getCleanRoomId();
+      if (lobbyPresenceListener && lobbyPresenceRef) {
+        lobbyPresenceRef.off('value', lobbyPresenceListener);
+      }
+
+      lobbyPresenceRef = dbRef.ref(`rooms/${cleanRoom}/presence`);
+
+      // Dengar perubahan status online bagi bilik semasa
+      lobbyPresenceListener = lobbyPresenceRef.on('value', (snapshot) => {
+        const presence = snapshot.val() || {};
+        const now = Date.now();
+        const TIMEOUT_THRESHOLD = 15000; // 15 saat
+
+        // Periksa Host (Player 1)
+        const p1Data = presence.player1;
+        const p1Online = p1Data && (now - (p1Data.lastSeen || 0) < TIMEOUT_THRESHOLD);
+        updateSlotBadgeUI('p1', p1Online, p1Data ? p1Data.name : null);
+
+        // Periksa Lawan (Player 2)
+        const p2Data = presence.player2;
+        const p2Online = p2Data && (now - (p2Data.lastSeen || 0) < TIMEOUT_THRESHOLD);
+        updateSlotBadgeUI('p2', p2Online, p2Data ? p2Data.name : null);
+
+        const hintEl = document.getElementById('lobby-sync-hint');
+        if (hintEl) {
+          if (p1Online && p2Online) {
+            hintEl.innerHTML = '🟢 <b style="color:#05ffa1;">Kedua-dua Pemain Telah Bersedia!</b>';
+          } else if (p1Online || p2Online) {
+            hintEl.innerHTML = '🟡 1 Pemain Sedang Online (Menunggu Lawan...)';
+          } else {
+            hintEl.innerText = '📡 Menunggu pemain masuk...';
+          }
+        }
+      });
+
+      // Hantar denyutan nadi (heartbeat) kehadiran sendiri ke Firebase
+      sendPresenceHeartbeat();
+    }
+
+    function updateSlotBadgeUI(roleKey, isOnline, teamName) {
+      const pill = document.getElementById(`status-pill-${roleKey}`);
+      const text = document.getElementById(`status-text-${roleKey}`);
+      const btn = document.getElementById(`btn-role-${roleKey}`);
+
+      if (pill && text) {
+        if (isOnline) {
+          pill.classList.add('is-online');
+          const shortName = teamName ? teamName.replace('BoBoiBoy ', '') : 'ONLINE';
+          text.innerText = `ONLINE (${shortName.toUpperCase()})`;
+          if (btn) {
+            btn.style.borderColor = '#05ffa1';
+          }
+        } else {
+          pill.classList.remove('is-online');
+          text.innerText = 'MENUNGGU';
+          if (btn && !btn.classList.contains('active')) {
+            btn.style.borderColor = '#334155';
+          }
+        }
+      }
+    }
+
+    function sendPresenceHeartbeat() {
+      if (!dbRef || !isFirebaseConfigured()) return;
+      const cleanRoom = getCleanRoomId();
+      const myPresenceRef = dbRef.ref(`rooms/${cleanRoom}/presence/${myRole}`);
+
+      myPresenceRef.set({
+        name: myName,
+        role: myRole,
+        lastSeen: Date.now()
+      });
+
+      // Bersihkan kehadiran jika tab ditutup / disconnect
+      myPresenceRef.onDisconnect().remove();
+    }
+
+    // Hantar denyutan heartbeat secara berkala setiap 5 saat di lobby
+    setInterval(() => {
+      const lobby = document.getElementById('lobby-screen');
+      if (lobby && lobby.style.display !== 'none') {
+        sendPresenceHeartbeat();
+      }
+    }, 5000);
+
     function initFirebase() {
-      const stored = localStorage.getItem('ar_quiz_firebase_config');
-      const config = stored ? JSON.parse(stored) : DEFAULT_CONFIG;
+      // Sentiasa utamakan DEFAULT_CONFIG rasmi projek yang disematkan
+      const config = DEFAULT_CONFIG;
+      localStorage.setItem('ar_quiz_firebase_config', JSON.stringify(config));
       
       try {
         if (!firebase.apps.length) {
           firebase.initializeApp(config);
         }
         dbRef = firebase.database();
-        console.log("Firebase initialized berjaya!");
+        console.log("Firebase initialized berjaya:", config.projectId);
+        
+        // Mulakan pengesanan pemain online di menu
+        initLobbyPresenceListener();
       } catch (err) {
         console.warn("Firebase ralat sambungan:", err);
       }
@@ -1942,30 +2111,37 @@ const ALL_QUESTIONS_PART_B = [{"question": "Haziq menaiki kereta dari Kuala Lump
         const cleanRoom = currentRoomId.replace(/[^a-zA-Z0-9_-]/g, '_');
         roomRef = dbRef.ref(`rooms/${cleanRoom}`);
 
-        // Jika Host (Pemain 1), set struktur awal jika bilik baru atau kemas kini setKey terkini
-        if (myRole === 'player1') {
-          roomRef.child('meta').transaction((current) => {
-            if (!current) {
-              return {
-                createdAt: Date.now(),
-                setKey: currentSetKey,
-                qIndex: 0,
-                lockedBy: null,
-                scores: { player1: 0, player2: 0 },
-                names: { 
-                  player1: myName, 
-                  player2: (myName === "BoBoiBoy Taufan" ? "BoBoiBoy Halilintar" : "BoBoiBoy Taufan") 
-                }
-              };
-            }
-            return {
-              ...current,
-              setKey: currentSetKey
+        // Pastikan bilik mempunyai struktur awal bila pemain pertama masuk
+        roomRef.child('meta').transaction((current) => {
+          if (!current) {
+            const initialNames = {
+              player1: (myRole === 'player1') ? myName : 'BoBoiBoy Halilintar',
+              player2: (myRole === 'player2') ? myName : 'BoBoiBoy Taufan'
             };
-          });
-        }
+            return {
+              createdAt: Date.now(),
+              setKey: currentSetKey,
+              qIndex: 0,
+              lockedBy: null,
+              lockedAt: null,
+              isSteal: false,
+              showAnswer: false,
+              isFinished: false,
+              scores: { player1: 0, player2: 0 },
+              names: initialNames
+            };
+          }
+          // Kemas kini nama peranan semasa dalam rekod bilik
+          if (current.names) {
+            current.names[myRole] = myName;
+          }
+          if (myRole === 'player1' && currentSetKey) {
+            current.setKey = currentSetKey;
+          }
+          return current;
+        });
 
-        // Kemas kini nama saya di bilik
+        // Kemas kini nama saya di bilik secara langsung
         roomRef.child(`meta/names/${myRole}`).set(myName);
 
         // Dengar Perubahan Bilik secara LIVE (Real-Time Listener)
