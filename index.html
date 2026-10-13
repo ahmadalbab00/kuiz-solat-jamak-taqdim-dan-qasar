@@ -1150,7 +1150,7 @@ const ALL_QUESTIONS_PART_B = [{"question": "Haziq menaiki kereta dari Kuala Lump
       currentSetKey = Math.min(5, Math.max(1, parseInt(setKey, 10) || 1));
       QUIZ_QUESTIONS = getQuestionsForSet(currentSetKey);
 
-      const hasRealFirebase = !!localStorage.getItem("ar_quiz_firebase_config");
+      const hasRealFirebase = isFirebaseConfigured();
       if (roomRef && hasRealFirebase && myRole === "player1") {
         roomRef.child("meta/setKey").set(currentSetKey);
       }
@@ -1308,7 +1308,7 @@ const ALL_QUESTIONS_PART_B = [{"question": "Haziq menaiki kereta dari Kuala Lump
 
     function resetLiveScoreboard() {
       if (confirm("Adakah anda ingin set semula (reset) markah perlawanan semasa kepada 0 - 0?")) {
-        const hasRealFirebase = !!localStorage.getItem('ar_quiz_firebase_config');
+        const hasRealFirebase = isFirebaseConfigured();
         if (roomRef && hasRealFirebase) {
           roomRef.child('meta').update({
             scores: { player1: 0, player2: 0 },
@@ -1336,7 +1336,7 @@ const ALL_QUESTIONS_PART_B = [{"question": "Haziq menaiki kereta dari Kuala Lump
         recordedMatchesSet.clear();
 
         // Juga set semula markah perlawanan semasa kepada 0
-        const hasRealFirebase = !!localStorage.getItem('ar_quiz_firebase_config');
+        const hasRealFirebase = isFirebaseConfigured();
         if (roomRef && hasRealFirebase) {
           roomRef.child('meta').update({
             scores: { player1: 0, player2: 0 },
@@ -1855,11 +1855,19 @@ const ALL_QUESTIONS_PART_B = [{"question": "Haziq menaiki kereta dari Kuala Lump
     // 4. SAMBUNGAN FIREBASE REALTIME DB
     // ==========================================
     const DEFAULT_CONFIG = {
-      apiKey: "AIzaSyDemoPlaceholder",
-      authDomain: "kuiz-ar-demo.firebaseapp.com",
-      databaseURL: "https://kuiz-ar-demo-default-rtdb.firebaseio.com",
-      projectId: "kuiz-ar-demo"
+      apiKey: "AIzaSyAOnIS0a2D7tbiqta9zGPco3pvgo8oylM4",
+      authDomain: "education-games-1982e.firebaseapp.com",
+      databaseURL: "https://education-games-1982e-default-rtdb.asia-southeast1.firebasedatabase.app",
+      projectId: "education-games-1982e",
+      storageBucket: "education-games-1982e.firebasestorage.app",
+      messagingSenderId: "31127742881",
+      appId: "1:31127742881:web:60902b434af1f6d5d243e0",
+      measurementId: "G-6D4Z2N8FX8"
     };
+
+    function isFirebaseConfigured() {
+      return (typeof firebase !== 'undefined' && !!dbRef);
+    }
 
     function initFirebase() {
       const stored = localStorage.getItem('ar_quiz_firebase_config');
@@ -1872,7 +1880,7 @@ const ALL_QUESTIONS_PART_B = [{"question": "Haziq menaiki kereta dari Kuala Lump
         dbRef = firebase.database();
         console.log("Firebase initialized berjaya!");
       } catch (err) {
-        console.warn("Firebase guna mod placeholder/offline:", err);
+        console.warn("Firebase ralat sambungan:", err);
       }
     }
 
@@ -1928,7 +1936,7 @@ const ALL_QUESTIONS_PART_B = [{"question": "Haziq menaiki kereta dari Kuala Lump
       setPlayMode(playMode);
 
       // Sambung ke Firebase Room jika konfigurasi sebenar wujud
-      const hasRealFirebase = !!localStorage.getItem('ar_quiz_firebase_config');
+      const hasRealFirebase = isFirebaseConfigured();
 
       if (dbRef && hasRealFirebase) {
         const cleanRoom = currentRoomId.replace(/[^a-zA-Z0-9_-]/g, '_');
@@ -2244,7 +2252,7 @@ const ALL_QUESTIONS_PART_B = [{"question": "Haziq menaiki kereta dari Kuala Lump
       const curQ = QUIZ_QUESTIONS[qIndex % QUIZ_QUESTIONS.length];
       const isKbat = curQ && curQ.isKbat;
       const penalty = isKbat ? 10 : 5;
-      const hasRealFirebase = !!localStorage.getItem('ar_quiz_firebase_config');
+      const hasRealFirebase = isFirebaseConfigured();
 
       // Jika ada butang salah ditekan, tandakan merah
       if (chosenIndex !== null) {
@@ -2332,7 +2340,7 @@ const ALL_QUESTIONS_PART_B = [{"question": "Haziq menaiki kereta dari Kuala Lump
       setTimeout(() => { isBuzzerCooldown = false; }, 1500);
 
       const now = Date.now();
-      const hasRealFirebase = !!localStorage.getItem('ar_quiz_firebase_config');
+      const hasRealFirebase = isFirebaseConfigured();
 
       if (roomRef && hasRealFirebase) {
         // Transaksi atomik Firebase
@@ -2383,7 +2391,7 @@ const ALL_QUESTIONS_PART_B = [{"question": "Haziq menaiki kereta dari Kuala Lump
 
       const isCorrect = (chosenIndex === curQ.answer);
       const chosenBtn = document.getElementById(`ans-${chosenIndex}`);
-      const hasRealFirebase = !!localStorage.getItem('ar_quiz_firebase_config');
+      const hasRealFirebase = isFirebaseConfigured();
 
       if (isCorrect) {
         // JAWAPAN TEPAT!
@@ -2416,7 +2424,7 @@ const ALL_QUESTIONS_PART_B = [{"question": "Haziq menaiki kereta dari Kuala Lump
     }
 
     function nextQuestion() {
-      const hasRealFirebase = !!localStorage.getItem('ar_quiz_firebase_config');
+      const hasRealFirebase = isFirebaseConfigured();
       if (roomRef && hasRealFirebase) {
         roomRef.child('meta').transaction((state) => {
           if (state) {
@@ -2451,7 +2459,7 @@ const ALL_QUESTIONS_PART_B = [{"question": "Haziq menaiki kereta dari Kuala Lump
     function resetGame() {
       // Pilih set soalan baharu secara rawak (tidak berulang berturut-turut)
       const newKey = randomizeNewQuestionSet();
-      const hasRealFirebase = !!localStorage.getItem('ar_quiz_firebase_config');
+      const hasRealFirebase = isFirebaseConfigured();
 
       if (roomRef && hasRealFirebase) {
         roomRef.child('meta').update({
