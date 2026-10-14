@@ -1386,6 +1386,23 @@
         &#10005; Skrin Normal
       </button>
 
+      <!-- Disconnect Notification Overlay (Jika Pemain Lawan Refresh/Disconnect) -->
+      <div id="disconnect-overlay" style="display: none; position: absolute; inset: 0; background: rgba(15, 23, 42, 0.94); backdrop-filter: blur(8px); z-index: 100; align-items: center; justify-content: center; padding: 20px;">
+        <div style="background: #1e293b; border: 2px solid #f43f5e; box-shadow: 0 0 35px rgba(244, 63, 94, 0.45); border-radius: 20px; padding: 24px 28px; max-width: 440px; text-align: center;">
+          <div style="font-size: 2.5rem; margin-bottom: 8px;">‚ö†Ô∏è</div>
+          <div id="disconnect-title" style="font-family: 'Orbitron', sans-serif; font-size: 1.15rem; font-weight: 900; color: #f43f5e; margin-bottom: 8px;">
+            PEMAIN LAWAN TERPUTUS SAMBUNGAN
+          </div>
+          <div id="disconnect-desc" style="font-size: 0.9rem; color: #cbd5e1; line-height: 1.45; margin-bottom: 18px;">
+            Pemain satu lagi telah memuat semula (refresh) atau keluar dari laman web. Permainan dijeda sementara menunggu mereka masuk semula.
+          </div>
+          <div style="display: flex; gap: 10px; justify-content: center; flex-wrap: wrap;">
+            <button class="btn-primary" style="padding: 10px 18px; font-size: 0.85rem;" onclick="returnToMainMenu('setup')">üè† Kembali Ke Menu</button>
+            <button class="btn-secondary" style="padding: 10px 18px; font-size: 0.85rem;" onclick="document.getElementById('disconnect-overlay').style.display='none'">Tunggu Sambung Semula</button>
+          </div>
+        </div>
+      </div>
+
       <!-- Left: Webcam + AR Canvas -->
       <div class="camera-pane">
         <video id="webcam-video" autoplay playsinline muted></video>
@@ -1400,25 +1417,32 @@
       <div class="quiz-pane">
         <!-- Scoreboard & Leaderboard Kumpulan Tertinggi -->
         <div class="scoreboard-container">
-          <div style="display: flex; justify-content: space-between; align-items: center; gap: 8px;">
-            <div class="leader-banner" id="leader-banner" style="flex: 1; margin-bottom: 0;">
+          <div style="display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap;">
+            <div class="leader-banner" id="leader-banner" style="flex: 1; min-width: 180px; margin-bottom: 0;">
               <span>&#127942;</span>
               <span id="leader-banner-text">KEDUDUKAN: Menunggu persaingan bermula...</span>
             </div>
-            <button type="button" class="btn-config" onclick="resetLiveScoreboard()" style="padding: 6px 12px; font-size: 0.78rem; border-radius: 8px; white-space: nowrap; border: 1px solid #f59e0b; color: #fef08a; cursor: pointer;" title="Set Semula Skor Semasa ke 0">
-              &#128259; Reset Skor
-            </button>
+            <div style="display: flex; gap: 6px;">
+              <button type="button" class="btn-config" onclick="resetRound()" style="padding: 6px 12px; font-size: 0.78rem; border-radius: 8px; white-space: nowrap; background: rgba(56, 189, 248, 0.2); border: 1px solid #38bdf8; color: #7dd3fc; font-weight: 700; cursor: pointer;" title="Set Semula Pusingan ke Soalan 1">
+                &#128257; Reset Round (Soalan 1)
+              </button>
+              <button type="button" class="btn-config" onclick="resetLiveScoreboard()" style="padding: 6px 12px; font-size: 0.78rem; border-radius: 8px; white-space: nowrap; border: 1px solid #f59e0b; color: #fef08a; cursor: pointer;" title="Set Semula Skor Semasa ke 0">
+                &#128259; Reset Skor
+              </button>
+            </div>
           </div>
           <div class="scoreboard" style="margin-top: 10px;">
             <div class="player-card" id="card-p1">
               <div class="rank-badge rank-tie" id="rank-badge-p1">&#129309; SERI</div>
               <div class="player-name" id="name-p1">KUMPULAN 1</div>
               <div class="player-score" id="score-p1">0</div>
+              <div class="player-role-indicator" id="role-tag-p1" style="font-size: 0.72rem; margin-top: 4px; font-weight: 800;">HOST</div>
             </div>
             <div class="player-card" id="card-p2">
               <div class="rank-badge rank-tie" id="rank-badge-p2">&#129309; SERI</div>
               <div class="player-name" id="name-p2">KUMPULAN 2</div>
               <div class="player-score" id="score-p2">0</div>
+              <div class="player-role-indicator" id="role-tag-p2" style="font-size: 0.72rem; margin-top: 4px; font-weight: 800;">LAWAN</div>
             </div>
           </div>
         </div>
@@ -1455,6 +1479,7 @@
 
         <!-- Host Action Buttons -->
         <div class="host-controls" id="host-actions" style="display: none;">
+          <button class="btn-primary" onclick="resetRound()" style="background: linear-gradient(135deg, #0284c7, #0369a1); border-color: #38bdf8; font-weight: 800;">&#128257; Reset Round (Soalan 1)</button>
           <button class="btn-secondary" onclick="nextQuestion()">Soalan Seterusnya &#9193;</button>
           <button class="btn-secondary" onclick="resetGame()">Set Semula Markah &#128259;</button>
         </div>
@@ -1633,6 +1658,23 @@ const ALL_QUESTIONS_PART_B = [{"question": "Haziq menaiki kereta dari Kuala Lump
       document.querySelectorAll('.team-opt-btn').forEach(btn => {
         btn.classList.toggle('active', btn.getAttribute('data-team') === teamName);
       });
+
+      // Auto-laraskan peranan jika belum dipilih secara manual oleh pengguna
+      if (teamName === 'BoBoiBoy Halilintar' && !window._userExplicitlyPickedRole) {
+        myRole = 'player1';
+        const b1 = document.getElementById('btn-role-p1');
+        const b2 = document.getElementById('btn-role-p2');
+        if (b1) b1.classList.add('active');
+        if (b2) b2.classList.remove('active');
+      } else if (teamName === 'BoBoiBoy Taufan' && !window._userExplicitlyPickedRole) {
+        myRole = 'player2';
+        const b1 = document.getElementById('btn-role-p1');
+        const b2 = document.getElementById('btn-role-p2');
+        if (b2) b2.classList.add('active');
+        if (b1) b1.classList.remove('active');
+      }
+
+      sendPresenceHeartbeat();
     }
 
     function switchLobbyTab(tab) {
@@ -1660,9 +1702,23 @@ const ALL_QUESTIONS_PART_B = [{"question": "Haziq menaiki kereta dari Kuala Lump
     }
 
     function returnToMainMenu(tab = 'setup') {
+      if (pendingNextQuestionTimer) {
+        clearTimeout(pendingNextQuestionTimer);
+        pendingNextQuestionTimer = null;
+      }
+      stopCountdownTimer();
+      if (touchRenderLoopId) {
+        cancelAnimationFrame(touchRenderLoopId);
+        touchRenderLoopId = null;
+      }
+
+      const overlay = document.getElementById('disconnect-overlay');
+      if (overlay) overlay.style.display = 'none';
+
       const lobby = document.getElementById('lobby-screen');
       if (lobby) lobby.style.display = 'flex';
       switchLobbyTab(tab);
+      initLobbyPresenceListener();
     }
 
     function filterScoreboard(kelas) {
@@ -2235,6 +2291,7 @@ const ALL_QUESTIONS_PART_B = [{"question": "Haziq menaiki kereta dari Kuala Lump
     });
 
     function selectRole(role) {
+      window._userExplicitlyPickedRole = true;
       myRole = role;
       document.getElementById('btn-role-p1').classList.toggle('active', role === 'player1');
       document.getElementById('btn-role-p2').classList.toggle('active', role === 'player2');
@@ -2304,6 +2361,15 @@ const ALL_QUESTIONS_PART_B = [{"question": "Haziq menaiki kereta dari Kuala Lump
         const p2Data = presence.player2;
         const p2Online = !!p2Data;
         updateSlotBadgeUI('p2', p2Online, p2Data ? p2Data.name : null);
+
+        // Auto-tetapkan slot jika Host sudah online dan peranti ini belum pilih peranan secara manual
+        if (p1Online && !p2Online && myRole === 'player1' && !window._userExplicitlyPickedRole) {
+          selectRole('player2');
+          const hint = document.getElementById('lobby-sync-hint');
+          if (hint) {
+            hint.innerHTML = 'üü¢ <b style="color:#05ffa1;">Slot Host telah diisi. Anda dimasukkan sebagai LAWAN!</b>';
+          }
+        }
 
         const hintEl = document.getElementById('lobby-sync-hint');
         if (hintEl) {
@@ -2378,6 +2444,69 @@ const ALL_QUESTIONS_PART_B = [{"question": "Haziq menaiki kereta dari Kuala Lump
       }
     }, 3000);
 
+    // Pengesanan Pemain di Arena (Disconnect / Refresh Detection)
+    let arenaPresenceRef = null;
+    let arenaPresenceListener = null;
+
+    function initArenaPresenceListener() {
+      if (!dbRef || !isFirebaseConfigured()) return;
+      const cleanRoom = getCleanRoomId();
+      arenaPresenceRef = dbRef.ref(`rooms/${cleanRoom}/presence`);
+
+      if (arenaPresenceListener && arenaPresenceRef) {
+        arenaPresenceRef.off('value', arenaPresenceListener);
+      }
+
+      // Daftar rekod kehadiran aktif dalam arena
+      const myPresenceRef = dbRef.ref(`rooms/${cleanRoom}/presence/${myRole}`);
+      myPresenceRef.onDisconnect().remove();
+      myPresenceRef.set({
+        name: myName,
+        role: myRole,
+        online: true,
+        inArena: true,
+        lastSeen: Date.now()
+      });
+
+      const opponentRole = (myRole === 'player1') ? 'player2' : 'player1';
+      const oppLabel = (opponentRole === 'player1') ? 'HOST' : 'LAWAN';
+
+      arenaPresenceListener = arenaPresenceRef.on('value', (snapshot) => {
+        const presence = snapshot.val() || {};
+        const oppData = presence[opponentRole];
+        const isOpponentOnline = !!(oppData && oppData.online);
+
+        const overlay = document.getElementById('disconnect-overlay');
+        const titleEl = document.getElementById('disconnect-title');
+        const descEl = document.getElementById('disconnect-desc');
+
+        if (overlay) {
+          if (!isOpponentOnline) {
+            overlay.style.display = 'flex';
+            if (titleEl) titleEl.innerText = `${oppLabel} TERPUTUS SAMBUNGAN`;
+            if (descEl) descEl.innerText = `Pemain ${oppLabel} telah memuat semula (refresh) atau keluar dari laman web. Sila tunggu mereka masuk semula atau kembali ke menu.`;
+          } else {
+            overlay.style.display = 'none';
+          }
+        }
+      });
+    }
+
+    // Pembersihan serta-merta semasa pengguna refresh atau tutup tab
+    window.addEventListener('beforeunload', () => {
+      if (dbRef && isFirebaseConfigured() && myRole) {
+        const cleanRoom = getCleanRoomId();
+        dbRef.ref(`rooms/${cleanRoom}/presence/${myRole}`).remove();
+      }
+    });
+
+    window.addEventListener('pagehide', () => {
+      if (dbRef && isFirebaseConfigured() && myRole) {
+        const cleanRoom = getCleanRoomId();
+        dbRef.ref(`rooms/${cleanRoom}/presence/${myRole}`).remove();
+      }
+    });
+
     function initFirebase() {
       // Sentiasa utamakan DEFAULT_CONFIG rasmi projek yang disematkan
       const config = DEFAULT_CONFIG;
@@ -2443,6 +2572,9 @@ const ALL_QUESTIONS_PART_B = [{"question": "Haziq menaiki kereta dari Kuala Lump
 
       // Mulakan Mod Permainan (Kamera AR atau Butang Skrin)
       setPlayMode(playMode);
+
+      // Mulakan pengesanan sambungan pemain lawan di Arena
+      initArenaPresenceListener();
 
       // Sambung ke Firebase Room jika konfigurasi sebenar wujud
       const hasRealFirebase = isFirebaseConfigured();
@@ -2572,6 +2704,20 @@ const ALL_QUESTIONS_PART_B = [{"question": "Haziq menaiki kereta dari Kuala Lump
       document.getElementById('name-p2').innerText = name2;
       document.getElementById('score-p1').innerText = score1;
       document.getElementById('score-p2').innerText = score2;
+
+      // Label Peranan Jelas (Siapa Anda)
+      const roleTagP1 = document.getElementById('role-tag-p1');
+      const roleTagP2 = document.getElementById('role-tag-p2');
+      if (roleTagP1) {
+        roleTagP1.innerHTML = (myRole === 'player1')
+          ? `<span style="background: rgba(5, 255, 161, 0.2); border: 1px solid #05ffa1; color: #05ffa1; padding: 1px 8px; border-radius: 6px;">ANDA (HOST)</span>`
+          : `<span style="color: #94a3b8;">HOST</span>`;
+      }
+      if (roleTagP2) {
+        roleTagP2.innerHTML = (myRole === 'player2')
+          ? `<span style="background: rgba(5, 255, 161, 0.2); border: 1px solid #05ffa1; color: #05ffa1; padding: 1px 8px; border-radius: 6px;">ANDA (LAWAN)</span>`
+          : `<span style="color: #94a3b8;">LAWAN</span>`;
+      }
 
       // Penentuan Kumpulan Tertinggi (Leaderboard Scoreboard)
       const leaderBanner = document.getElementById('leader-banner-text');
