@@ -391,6 +391,37 @@
       color: #fff !important;
       box-shadow: 0 0 14px rgba(0, 242, 254, 0.35);
     }
+    .team-opt-btn.taken-by-opponent,
+    .team-opt-btn.taken-by-host {
+      border-color: #ef4444 !important;
+      background: rgba(220, 38, 38, 0.28) !important;
+      color: #fca5a5 !important;
+      box-shadow: 0 0 14px rgba(239, 68, 68, 0.45) !important;
+      cursor: not-allowed !important;
+    }
+    .team-opt-btn.taken-by-opponent:hover,
+    .team-opt-btn.taken-by-host:hover {
+      background: rgba(220, 38, 38, 0.38) !important;
+      border-color: #f87171 !important;
+      transform: none !important;
+    }
+    .badge-taken-team {
+      margin-left: auto;
+      background: #dc2626;
+      color: #ffffff;
+      font-size: 0.65rem;
+      font-weight: 800;
+      padding: 3px 8px;
+      border-radius: 6px;
+      letter-spacing: 0.5px;
+      white-space: nowrap;
+      box-shadow: 0 0 8px rgba(220, 38, 38, 0.7);
+      animation: pulse-red 2s infinite;
+    }
+    @keyframes pulse-red {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.78; }
+    }
     .team-opt-btn .team-icon {
       font-size: 1.25rem;
     }
@@ -1651,13 +1682,67 @@ const ALL_QUESTIONS_PART_B = [{"question": "Haziq menaiki kereta dari Kuala Lump
     let reviewFilterClass = 'ALL';
     const recordedMatchesSet = new Set();
 
+    let _lastPresenceData = null;
+
+    function updateLobbyTeamGrid(presence) {
+      if (presence) _lastPresenceData = presence;
+      const curPresence = _lastPresenceData || {};
+
+      const oppRole = (myRole === 'player1') ? 'player2' : 'player1';
+      const oppData = curPresence[oppRole];
+      const oppOnline = !!(oppData && oppData.online);
+      const oppTeam = (oppOnline && oppData.name) ? oppData.name : null;
+      window._oppSelectedTeam = oppTeam;
+
+      const oppLabel = (myRole === 'player1') ? 'LAWAN' : 'HOST';
+
+      // Jika kumpulan yang saya pilih sekarang telah diambil oleh lawan/host, auto-tukar ke kumpulan kosong
+      if (oppTeam && myName === oppTeam) {
+        const availableTeam = BOBOIBOY_TEAMS.find(t => t.name !== oppTeam);
+        if (availableTeam) {
+          myName = availableTeam.name;
+          const input = document.getElementById('player-name-input');
+          if (input) input.value = availableTeam.name;
+          sendPresenceHeartbeat();
+        }
+      }
+
+      document.querySelectorAll('.team-opt-btn').forEach(btn => {
+        const tName = btn.getAttribute('data-team');
+        const existingBadge = btn.querySelector('.badge-taken-team');
+        if (existingBadge) existingBadge.remove();
+
+        if (oppTeam && tName === oppTeam) {
+          btn.classList.add('taken-by-opponent');
+          if (oppRole === 'player1') {
+            btn.classList.add('taken-by-host');
+          }
+          btn.classList.remove('active');
+
+          const badge = document.createElement('span');
+          badge.className = 'badge-taken-team';
+          badge.innerHTML = `&#128274; DIPILIH ${oppLabel}`;
+          btn.appendChild(badge);
+        } else {
+          btn.classList.remove('taken-by-opponent', 'taken-by-host');
+          btn.classList.toggle('active', tName === myName);
+        }
+      });
+    }
+
     function selectTeamName(teamName) {
+      if (window._oppSelectedTeam && window._oppSelectedTeam === teamName) {
+        const oppLabel = (myRole === 'player1') ? 'LAWAN' : 'HOST';
+        const hint = document.getElementById('lobby-sync-hint');
+        if (hint) {
+          hint.innerHTML = `<span style="color:#ef4444; font-weight:800;">‚ö†Ô∏è Kumpulan ${teamName} telah dipilih oleh ${oppLabel}! Sila pilih kumpulan lain.</span>`;
+        }
+        return;
+      }
+
       myName = teamName;
       const input = document.getElementById('player-name-input');
       if (input) input.value = teamName;
-      document.querySelectorAll('.team-opt-btn').forEach(btn => {
-        btn.classList.toggle('active', btn.getAttribute('data-team') === teamName);
-      });
 
       // Auto-laraskan peranan jika belum dipilih secara manual oleh pengguna
       if (teamName === 'BoBoiBoy Halilintar' && !window._userExplicitlyPickedRole) {
@@ -1674,6 +1759,7 @@ const ALL_QUESTIONS_PART_B = [{"question": "Haziq menaiki kereta dari Kuala Lump
         if (b1) b1.classList.remove('active');
       }
 
+      updateLobbyTeamGrid();
       sendPresenceHeartbeat();
     }
 
@@ -2302,6 +2388,7 @@ const ALL_QUESTIONS_PART_B = [{"question": "Haziq menaiki kereta dari Kuala Lump
       } else if (role === 'player1' && (currentVal === 'BoBoiBoy Taufan' || !currentVal)) {
         selectTeamName('BoBoiBoy Halilintar');
       }
+      updateLobbyTeamGrid();
       sendPresenceHeartbeat();
     }
 
@@ -2370,6 +2457,9 @@ const ALL_QUESTIONS_PART_B = [{"question": "Haziq menaiki kereta dari Kuala Lump
             hint.innerHTML = 'üü¢ <b style="color:#05ffa1;">Slot Host telah diisi. Anda dimasukkan sebagai LAWAN!</b>';
           }
         }
+
+        // Kemas kini pilihan kumpulan: jika Host pilih kumpulan, jadikan merah di web Lawan!
+        updateLobbyTeamGrid(presence);
 
         const hintEl = document.getElementById('lobby-sync-hint');
         if (hintEl) {
@@ -3298,6 +3388,57 @@ const ALL_QUESTIONS_PART_B = [{"question": "Haziq menaiki kereta dari Kuala Lump
         updateGameUI(currentGameState);
       }
     }
+
+    function resetRound() {
+      if (pendingNextQuestionTimer) {
+        clearTimeout(pendingNextQuestionTimer);
+        pendingNextQuestionTimer = null;
+      }
+      stopCountdownTimer();
+      isBuzzerCooldown = false;
+
+      const hasRealFirebase = isFirebaseConfigured();
+      if (!roomRef && hasRealFirebase && dbRef) {
+        const cleanRoom = getCleanRoomId();
+        roomRef = dbRef.ref(`rooms/${cleanRoom}`);
+      }
+
+      if (roomRef && hasRealFirebase) {
+        roomRef.child('meta').update({
+          qIndex: 0,
+          scores: { player1: 0, player2: 0 },
+          lockedBy: null,
+          lockedAt: null,
+          isSteal: false,
+          showAnswer: false,
+          isFinished: false
+        }).then(() => {
+          console.log("Pusingan berjaya di-reset ke Soalan 1.");
+        }).catch(err => {
+          console.error("Gagal reset round ke Firebase:", err);
+        });
+      }
+
+      if (currentGameState) {
+        currentGameState.qIndex = 0;
+        currentGameState.scores = { player1: 0, player2: 0 };
+        currentGameState.lockedBy = null;
+        currentGameState.lockedAt = null;
+        currentGameState.isSteal = false;
+        currentGameState.showAnswer = false;
+        currentGameState.isFinished = false;
+        updateGameUI(currentGameState);
+      }
+
+      const leaderBanner = document.getElementById('leader-banner-text');
+      if (leaderBanner) {
+        leaderBanner.innerHTML = 'üîÑ <b style="color:#38bdf8;">Pusingan telah di-reset ke Soalan 1 (0 - 0)!</b>';
+        setTimeout(() => {
+          if (currentGameState) updateGameUI(currentGameState);
+        }, 2500);
+      }
+    }
+    window.resetRound = resetRound;
 
     // ==========================================
     // 9. WEBCAM AR & MEDIAPIPE HAND TRACKING
