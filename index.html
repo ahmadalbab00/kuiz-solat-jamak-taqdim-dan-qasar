@@ -2518,6 +2518,23 @@ const ALL_QUESTIONS_PART_B = [{"question": "Haziq menaiki kereta dari Kuala Lump
     }
 
     // ==========================================
+    // FORMATTER TEKS PINTAR & TIPOGRAFI ARAB
+    // ==========================================
+    function formatRichText(rawText) {
+      if (!rawText) return '';
+      // Padankan teks Arab (termasuk baris/harakat) berserta tanda petik jika ada
+      const arabicPattern = /([\"\'\¬´]?)([\u0600-\u06FF\u0750-\u077F\uFB50-\uFDFF\uFE70-\uFEFF]+(?:[\s\u064B-\u065F\u0670\u06D6-\u06ED]+[\u0600-\u06FF\u0750-\u077F\uFB50-\uFDFF\uFE70-\uFEFF]+)*)([\"\'\¬ª]?)/g;
+      
+      return rawText.replace(arabicPattern, (match, openQ, arabicContent, closeQ) => {
+        const inner = `<span class="arabic-text" dir="rtl" lang="ar">${arabicContent.trim()}</span>`;
+        if (openQ || closeQ) {
+          return `<span class="arabic-quote">&ldquo;${inner}&rdquo;</span>`;
+        }
+        return inner;
+      });
+    }
+
+    // ==========================================
     // 6. KEMAS KINI UI BERDASARKAN DATA CLOUD
     // ==========================================
     function updateGameUI(state) {
