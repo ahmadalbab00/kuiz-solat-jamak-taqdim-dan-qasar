@@ -953,23 +953,27 @@
       -webkit-tap-highlight-color: transparent;
     }
 
-    .ans-btn.arming {
-      opacity: 0.88;
-      cursor: wait;
-      border-color: rgba(0, 242, 254, 0.45);
+    .ans-btn.arming,
+    .ans-btn.arming:disabled {
+      opacity: 0.9 !important;
+      cursor: wait !important;
+      border-color: rgba(56, 189, 248, 0.7) !important;
+      box-shadow: 0 0 12px rgba(56, 189, 248, 0.3) !important;
+      pointer-events: none !important;
     }
 
     .ans-btn.armed {
-      opacity: 1;
-      border-color: #38bdf8;
-      box-shadow: 0 0 14px rgba(56, 189, 248, 0.25);
+      opacity: 1 !important;
+      border-color: #38bdf8 !important;
+      box-shadow: 0 0 14px rgba(56, 189, 248, 0.4) !important;
+      pointer-events: auto !important;
     }
     .ans-btn:not(:disabled):hover {
       background: #1e293b;
       border-color: var(--primary);
       transform: translateY(-2px);
     }
-    .ans-btn:disabled {
+    .ans-btn:disabled:not(.arming) {
       opacity: 0.4;
       cursor: not-allowed;
     }
@@ -1502,10 +1506,10 @@
 
         <!-- Answers Buttons -->
         <div class="answers-grid">
-          <button class="ans-btn" id="ans-0" onclick="submitAnswer(0)" disabled>A. Menunggu...</button>
-          <button class="ans-btn" id="ans-1" onclick="submitAnswer(1)" disabled>B. Menunggu...</button>
-          <button class="ans-btn" id="ans-2" onclick="submitAnswer(2)" disabled>C. Menunggu...</button>
-          <button class="ans-btn" id="ans-3" onclick="submitAnswer(3)" disabled>D. Menunggu...</button>
+          <button class="ans-btn" id="ans-0" onclick="submitAnswer(0, event)" disabled>A. Menunggu...</button>
+          <button class="ans-btn" id="ans-1" onclick="submitAnswer(1, event)" disabled>B. Menunggu...</button>
+          <button class="ans-btn" id="ans-2" onclick="submitAnswer(2, event)" disabled>C. Menunggu...</button>
+          <button class="ans-btn" id="ans-3" onclick="submitAnswer(3, event)" disabled>D. Menunggu...</button>
         </div>
 
         <!-- Host Action Buttons -->
@@ -1554,17 +1558,17 @@ const ALL_QUESTIONS_PART_B = [{"question": "Haziq menaiki kereta dari Kuala Lump
 
     function getQuestionsForSet(setKey) {
       const setNum = Math.min(5, Math.max(1, parseInt(setKey, 10) || 1));
-      if (setNum >= 1 && setNum <= 4) {
-        const start = (setNum - 1) * 9;
-        const biasaList = ALL_QUESTIONS_PART_A.slice(start, start + 9);
-        const kbatQ = ALL_QUESTIONS_PART_B[setNum - 1] || ALL_QUESTIONS_PART_B[0];
-        return [...biasaList, kbatQ];
-      } else if (setNum === 5) {
-        const biasaList = ALL_QUESTIONS_PART_A.slice(36, 40);
-        const kbatList = ALL_QUESTIONS_PART_B.slice(4, 10);
-        return [...biasaList, ...kbatList];
+      // Soalan 1 hingga 7: Soalan Biasa (Part A, 4 pilihan, +10 markah)
+      const startA = ((setNum - 1) * 7) % 35;
+      const biasaList = ALL_QUESTIONS_PART_A.slice(startA, startA + 7);
+      
+      // Soalan 8, 9, 10: Soalan KBAT (Part B, 2 pilihan, 15 saat, +20 markah, tiada steal)
+      const startB = ((setNum - 1) * 2) % 8;
+      const kbatList = ALL_QUESTIONS_PART_B.slice(startB, startB + 3);
+      if (kbatList.length < 3) {
+        kbatList.push(...ALL_QUESTIONS_PART_B.slice(0, 3 - kbatList.length));
       }
-      return [...ALL_QUESTIONS_PART_A.slice(0, 9), ALL_QUESTIONS_PART_B[0]];
+      return [...biasaList, ...kbatList];
     }
 
     // Fungsi memilih set soalan secara rawak tanpa berturut-turut sama (1 hingga 5)
@@ -3029,19 +3033,29 @@ const ALL_QUESTIONS_PART_B = [{"question": "Haziq menaiki kereta dari Kuala Lump
     }
 
     let answerUnlockTime = 0;
+    let armingTimeoutIds = [];
 
     function disableAnswerButtons(disabled) {
       const qIndex = currentGameState ? (currentGameState.qIndex || 0) : 0;
       const curQ = QUIZ_QUESTIONS[qIndex % QUIZ_QUESTIONS.length];
       const totalOptions = (curQ && curQ.options) ? curQ.options.length : 4;
 
+      // Hentikan sebarang pemasa arming terdahulu
+      armingTimeoutIds.forEach(id => clearTimeout(id));
+      armingTimeoutIds = [];
+
       for (let i = 0; i < 4; i++) {
         const btn = document.getElementById(`ans-${i}`);
         if (!btn) continue;
 
+        if (typeof btn.blur === 'function') {
+          btn.blur();
+        }
+
         if (i >= totalOptions) {
           btn.style.display = 'none';
           btn.disabled = true;
+          btn.style.pointerEvents = 'none';
           continue;
         }
 
@@ -3059,19 +3073,28 @@ const ALL_QUESTIONS_PART_B = [{"question": "Haziq menaiki kereta dari Kuala Lump
           btn.classList.remove('armed');
           btn.classList.remove('arming');
         } else {
-          // Buka butang jawapan dengan penampan perlindungan 300ms
-          answerUnlockTime = Date.now() + 300;
-          btn.disabled = false;
-          btn.style.pointerEvents = 'none'; // Kunci interaksi fizikal sementara selama 300ms
+          // KEKALKAN BUTANG DIKUNCI (DISABLED) SELAMA 700ms PENAMPAN KESELAMATAN
+          // Ini 100% menghalang ghost click / touch bleeds / synthetic click dari buzzer di iPad & Chrome
+          const ARMING_DURATION_MS = 700;
+          answerUnlockTime = Date.now() + ARMING_DURATION_MS;
+
+          btn.disabled = true; // KEKAL DISABLED SEPENUHNYA semasa fasa arming!
+          btn.style.pointerEvents = 'none';
           btn.classList.remove('armed');
           btn.classList.add('arming');
-          setTimeout(() => {
-            if (!btn.disabled && !(currentGameState && currentGameState.wrongChoice === i)) {
-              btn.style.pointerEvents = 'auto'; // Aktifkan interaksi semula
-              btn.classList.remove('arming');
-              btn.classList.add('armed');
+
+          const tId = setTimeout(() => {
+            // Pastikan giliran masih dipegang sebelum butang dibuka
+            if (currentGameState && currentGameState.lockedBy === myRole && !currentGameState.showAnswer) {
+              if (!(currentGameState && currentGameState.wrongChoice === i)) {
+                btn.disabled = false; // Buka butang HANYA selepas 700ms tamat!
+                btn.style.pointerEvents = 'auto';
+                btn.classList.remove('arming');
+                btn.classList.add('armed');
+              }
             }
-          }, 300);
+          }, ARMING_DURATION_MS);
+          armingTimeoutIds.push(tId);
         }
       }
     }
@@ -3317,20 +3340,30 @@ const ALL_QUESTIONS_PART_B = [{"question": "Haziq menaiki kereta dari Kuala Lump
     // ==========================================
     // 9. HANTAR JAWAPAN (SUBMIT ANSWER)
     // ==========================================
-    function submitAnswer(chosenIndex) {
+    function submitAnswer(chosenIndex, event) {
+      const e = event || window.event;
       if (!currentGameState || currentGameState.lockedBy !== myRole) return;
       if (currentGameState.showAnswer) return;
 
       // KESELAMATAN ANTI-AUTO-PICK:
-      // Abaikan jika ditekan dalam tempoh 450ms dari saat buzzer dimenangi
+      // 1. Abaikan klik palsu papan kekunci (Spacebar/Enter) pada butang yang mendapat fokus
+      if (e) {
+        if (e.type === 'click' && e.detail === 0 && e.clientX === 0 && e.clientY === 0) {
+          console.warn("Anti-Auto-Pick: Klik palsu papan kekunci (Spacebar/Enter) diabaikan.");
+          if (e.preventDefault) e.preventDefault();
+          return;
+        }
+      }
+
+      // 2. Abaikan jika ditekan dalam tempoh 650ms dari saat buzzer dimenangi
       const now = Date.now();
       if (now < answerUnlockTime) {
-        console.warn("Anti-Auto-Pick: Sentuhan diabaikan kerana terlalu pantas selepas buzzer (penampan 450ms).");
+        console.warn("Anti-Auto-Pick: Sentuhan diabaikan kerana masih dalam tempoh arming (penampan 650ms).");
         return;
       }
       const timeSinceLocked = now - (currentGameState.lockedAt || 0);
-      if (timeSinceLocked < 400) {
-        console.warn("Anti-Auto-Pick: Tempoh berkunci belum melepasi 400ms.");
+      if (timeSinceLocked < 650) {
+        console.warn("Anti-Auto-Pick: Tempoh berkunci belum melepasi 650ms.");
         return;
       }
 
@@ -3882,12 +3915,20 @@ const ALL_QUESTIONS_PART_B = [{"question": "Haziq menaiki kereta dari Kuala Lump
     }
 
     // Membolehkan klik/sentuh skrin (Sesuai untuk Mod Tanpa Kamera / Skrin Sentuh)
-    canvasElement.addEventListener('pointerdown', (e) => {
+    const handleCanvasBuzzerTouch = (e) => {
       e.preventDefault();
       e.stopPropagation();
+      let clientX, clientY;
+      if (e.touches && e.touches.length > 0) {
+        clientX = e.touches[0].clientX;
+        clientY = e.touches[0].clientY;
+      } else {
+        clientX = e.clientX;
+        clientY = e.clientY;
+      }
       const rect = canvasElement.getBoundingClientRect();
-      const x = ((e.clientX - rect.left) / rect.width);
-      const y = ((e.clientY - rect.top) / rect.height);
+      const x = ((clientX - rect.left) / rect.width);
+      const y = ((clientY - rect.top) / rect.height);
       const dist = Math.hypot(x - BUZZER_ZONE.x, y - BUZZER_ZONE.y);
 
       // Sentuh kawasan sekitar buzzer (atau mana-mana dalam mod touch) untuk tekan buzzer
@@ -3895,11 +3936,18 @@ const ALL_QUESTIONS_PART_B = [{"question": "Haziq menaiki kereta dari Kuala Lump
         buzzerShockwave = 30;
         triggerBuzzerPress();
       }
-    });
+    };
+
+    canvasElement.addEventListener('pointerdown', handleCanvasBuzzerTouch);
+    canvasElement.addEventListener('touchstart', handleCanvasBuzzerTouch, { passive: false });
 
     // Papan Kekunci: Tekan [SPACEBAR] untuk tekan buzzer serta-merta
     window.addEventListener('keydown', (e) => {
       if (e.code === 'Space') {
+        if (e.repeat) {
+          e.preventDefault();
+          return;
+        }
         const modal = document.getElementById('config-modal');
         const lobby = document.getElementById('lobby-screen');
         if (modal && modal.style.display !== 'flex' && lobby && lobby.style.display === 'none') {
@@ -3907,6 +3955,12 @@ const ALL_QUESTIONS_PART_B = [{"question": "Haziq menaiki kereta dari Kuala Lump
           buzzerShockwave = 30;
           triggerBuzzerPress();
         }
+      }
+    });
+
+    window.addEventListener('keyup', (e) => {
+      if (e.code === 'Space') {
+        e.preventDefault();
       }
     });
 
