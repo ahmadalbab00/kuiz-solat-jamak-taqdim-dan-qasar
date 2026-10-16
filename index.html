@@ -2972,6 +2972,8 @@ const ALL_QUESTIONS_PART_B = [{"question": "Haziq menaiki kereta dari Kuala Lump
         }
         stopCountdownTimer();
         isBuzzerCooldown = false;
+        isSubmittingAnswer = false;
+        lastAnsweredQuestionIndex = -1;
 
         // Kosongkan gaya butang jawapan
         for (let i = 0; i < 4; i++) {
@@ -2984,13 +2986,15 @@ const ALL_QUESTIONS_PART_B = [{"question": "Haziq menaiki kereta dari Kuala Lump
         }
       }
 
-      // Jika soalan bertukar, batalkan pemasa peralihan lama
+      // Jika soalan bertukar, batalkan pemasa peralihan lama & buka semula kunci jawapan
       if (qIndex !== lastRenderedQIndex) {
         lastRenderedQIndex = qIndex;
         if (pendingNextQuestionTimer) {
           clearTimeout(pendingNextQuestionTimer);
           pendingNextQuestionTimer = null;
         }
+        isSubmittingAnswer = false;
+        lastAnsweredQuestionIndex = -1;
       }
 
       // Kemas kini Nama & Markah
@@ -3165,15 +3169,26 @@ const ALL_QUESTIONS_PART_B = [{"question": "Haziq menaiki kereta dari Kuala Lump
       if (state.showAnswer) {
         // Paparkan jawapan yang betul dengan warna HIJAU
         banner.style.display = 'block';
-        banner.className = 'buzzer-alert opponent-buzzed';
         const correctOptLetter = String.fromCharCode(65 + curQ.answer);
-        if (isKbat) {
+
+        if (state.answeredCorrectly) {
+          const winnerRole = state.answeredCorrectly;
+          const winnerName = (state.names && state.names[winnerRole]) || winnerRole;
+          const isMe = (winnerRole === myRole);
+          const pointsGain = isKbat ? 20 : 10;
+          banner.className = 'buzzer-alert you-buzzed';
+          banner.innerHTML = isMe
+            ? `\ud83c\udf89 <b>TAHNIAH! JAWAPAN TEPAT!</b> (+${pointsGain} Mata Ditambah!)`
+            : `\u2705 <b>${winnerName.toUpperCase()} MENJAWAB TEPAT!</b> (+${pointsGain} Mata Ditambah)`;
+        } else if (isKbat) {
+          banner.className = 'buzzer-alert opponent-buzzed';
           banner.innerHTML = `\ud83c\udf1f <b>JAWAPAN KBAT SALAH / MASA TAMAT! SOALAN DITERUSKAN!</b> <br>Jawapan Sebenar: <b style="color:var(--accent-green);">${correctOptLetter}. ${formatRichText(curQ.options[curQ.answer])}</b>`;
         } else {
+          banner.className = 'buzzer-alert opponent-buzzed';
           banner.innerHTML = `\u274c KEDUA-DUA KUMPULAN SALAH! <br>Jawapan Sebenar: <b style="color:var(--accent-green);">${correctOptLetter}. ${formatRichText(curQ.options[curQ.answer])}</b>`;
         }
         
-        // Warnakan butang jawapan yang betul kepada HIJAU
+        // Warnakan butang jawapan yang betul kepada HIJAU pada kedua-dua peranti
         const correctBtn = document.getElementById(`ans-${curQ.answer}`);
         if (correctBtn) correctBtn.classList.add('correct');
 
@@ -3181,8 +3196,9 @@ const ALL_QUESTIONS_PART_B = [{"question": "Haziq menaiki kereta dari Kuala Lump
         stopCountdownTimer();
         disableAnswerButtons(true);
 
-        // Keselamatan pemulihan automatik jika showAnswer tersekat melebihi 3.5 saat
+        // Keselamatan pemulihan automatik jika showAnswer tersekat
         if (!window._showAnswerWatchdog) {
+          const watchdogDelay = state.answeredCorrectly ? 2800 : 4000;
           window._showAnswerWatchdog = setTimeout(() => {
             window._showAnswerWatchdog = null;
             if (currentGameState && currentGameState.showAnswer) {
@@ -3190,7 +3206,7 @@ const ALL_QUESTIONS_PART_B = [{"question": "Haziq menaiki kereta dari Kuala Lump
                 nextQuestion();
               }
             }
-          }, 3500);
+          }, watchdogDelay);
         }
       } else {
         if (window._showAnswerWatchdog) {
@@ -3567,6 +3583,9 @@ const ALL_QUESTIONS_PART_B = [{"question": "Haziq menaiki kereta dari Kuala Lump
       }
     }
 
+    let isSubmittingAnswer = false;
+    let lastAnsweredQuestionIndex = -1;
+
     // ==========================================
     // 9. HANTAR JAWAPAN (SUBMIT ANSWER)
     // ==========================================
@@ -3574,6 +3593,15 @@ const ALL_QUESTIONS_PART_B = [{"question": "Haziq menaiki kereta dari Kuala Lump
       const e = event || window.event;
       if (!currentGameState || currentGameState.lockedBy !== myRole) return;
       if (currentGameState.showAnswer) return;
+
+      const qIndex = currentGameState.qIndex || 0;
+
+      // KESELAMATAN KETAT ANTI-DOUBLE-CLICK / ANTI-SPAM MARKAH:
+      // Sekat jika sedang diproses atau soalan ini sudah pernah dihantar jawapan
+      if (isSubmittingAnswer || lastAnsweredQuestionIndex === qIndex) {
+        console.warn("Anti-Spam: Jawapan untuk soalan ini telah dihantar. Percubaan berulang disekat.");
+        return;
+      }
 
       // KESELAMATAN ANTI-AUTO-PICK:
       // 1. Abaikan klik palsu papan kekunci (Spacebar/Enter) pada butang yang mendapat fokus
@@ -3597,10 +3625,22 @@ const ALL_QUESTIONS_PART_B = [{"question": "Haziq menaiki kereta dari Kuala Lump
         return;
       }
 
-      stopCountdownTimer();
-      disableAnswerButtons(true);
+      // KUNCI SERTA-MERTA PADA SENTUHAN PERTAMA!
+      isSubmittingAnswer = true;
+      lastAnsweredQuestionIndex = qIndex;
 
-      const qIndex = currentGameState.qIndex || 0;
+      stopCountdownTimer();
+
+      // Kunci semua butang jawapan secara fizikal dan serta-merta
+      for (let i = 0; i < 4; i++) {
+        const btn = document.getElementById(`ans-${i}`);
+        if (btn) {
+          btn.disabled = true;
+          btn.style.pointerEvents = 'none';
+          btn.classList.remove('armed', 'arming');
+        }
+      }
+
       const curQ = QUIZ_QUESTIONS[qIndex % QUIZ_QUESTIONS.length];
       const isKbat = curQ && curQ.isKbat;
       const pointsGain = isKbat ? 20 : 10;
@@ -3612,7 +3652,7 @@ const ALL_QUESTIONS_PART_B = [{"question": "Haziq menaiki kereta dari Kuala Lump
       if (isCorrect) {
         // JAWAPAN TEPAT!
         soundCorrect();
-        chosenBtn.classList.add('correct');
+        if (chosenBtn) chosenBtn.classList.add('correct');
         const banner = document.getElementById('buzzer-banner');
         if (banner) {
           banner.className = 'buzzer-alert you-buzzed';
@@ -3623,25 +3663,39 @@ const ALL_QUESTIONS_PART_B = [{"question": "Haziq menaiki kereta dari Kuala Lump
         if (roomRef && hasRealFirebase) {
           roomRef.child('meta').transaction((meta) => {
             if (meta) {
+              // Pastikan markah hanya ditambah SATU KALI sahaja untuk soalan ini
+              if (meta.scoredQIndex === meta.qIndex) {
+                console.warn("Firebase: Soalan ini sudah diberi markah!");
+                return meta;
+              }
               if (!meta.scores) meta.scores = { player1: 0, player2: 0 };
               meta.scores[myRole] = (meta.scores[myRole] || 0) + pointsGain;
+              meta.scoredQIndex = meta.qIndex;
+              meta.answeredCorrectly = myRole;
+              meta.showAnswer = true; // Segerakkan skrin jawapan ke semua pemain
+              meta.lockedBy = null;
             }
             return meta;
           });
         } else {
           if (!currentGameState.scores) currentGameState.scores = { player1: 0, player2: 0 };
           currentGameState.scores[myRole] = (currentGameState.scores[myRole] || 0) + pointsGain;
+          currentGameState.scoredQIndex = currentGameState.qIndex;
+          currentGameState.answeredCorrectly = myRole;
+          currentGameState.showAnswer = true;
+          currentGameState.lockedBy = null;
           updateGameUI(currentGameState);
         }
 
-        // Beralih ke soalan seterusnya selepas 2 saat (Hanya pemenang yang menjadualkan)
+        // Beralih ke soalan seterusnya selepas 2.2 saat
         if (pendingNextQuestionTimer) clearTimeout(pendingNextQuestionTimer);
         pendingNextQuestionTimer = setTimeout(() => {
           pendingNextQuestionTimer = null;
+          isSubmittingAnswer = false;
           nextQuestion();
-        }, 2000);
+        }, 2200);
       } else {
-        // JAWAPAN SALAH! Kendalikan kegagalan giliran (pass turn atau tunjuk jawapan hijau)
+        // JAWAPAN SALAH!
         handleTurnFailure(myRole, chosenIndex);
       }
     }
@@ -3651,6 +3705,9 @@ const ALL_QUESTIONS_PART_B = [{"question": "Haziq menaiki kereta dari Kuala Lump
         clearTimeout(pendingNextQuestionTimer);
         pendingNextQuestionTimer = null;
       }
+      isSubmittingAnswer = false;
+      lastAnsweredQuestionIndex = -1;
+
       const hasRealFirebase = isFirebaseConfigured();
       if (roomRef && hasRealFirebase) {
         roomRef.child('meta').transaction((state) => {
@@ -3666,6 +3723,8 @@ const ALL_QUESTIONS_PART_B = [{"question": "Haziq menaiki kereta dari Kuala Lump
             state.isSteal = false;
             state.wrongChoice = null;
             state.showAnswer = false;
+            state.answeredCorrectly = null;
+            state.scoredQIndex = -1;
           }
           return state;
         });
@@ -3681,6 +3740,8 @@ const ALL_QUESTIONS_PART_B = [{"question": "Haziq menaiki kereta dari Kuala Lump
         currentGameState.isSteal = false;
         currentGameState.wrongChoice = null;
         currentGameState.showAnswer = false;
+        currentGameState.answeredCorrectly = null;
+        currentGameState.scoredQIndex = -1;
         updateGameUI(currentGameState);
       }
     }
@@ -3749,7 +3810,9 @@ const ALL_QUESTIONS_PART_B = [{"question": "Haziq menaiki kereta dari Kuala Lump
           wrongChoice: null,
           showAnswer: false,
           isFinished: false,
-          resetAt: resetTimestamp
+          resetAt: resetTimestamp,
+          scoredQIndex: -1,
+          answeredCorrectly: null
         }).then(() => {
           console.log("Pusingan berjaya dimulakan semula ke Soalan 1.");
         }).catch(err => {
