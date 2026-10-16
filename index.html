@@ -861,6 +861,14 @@
       color: var(--accent-red);
       box-shadow: 0 0 20px rgba(255, 42, 109, 0.4);
     }
+    .buzzer-alert.waiting-buzz {
+      display: block;
+      background: rgba(14, 165, 233, 0.15);
+      border: 2px solid #38bdf8;
+      color: #bae6fd;
+      box-shadow: 0 0 16px rgba(56, 189, 248, 0.25);
+      animation: none;
+    }
 
     @keyframes alertPulse {
       from { transform: scale(0.99); }
@@ -1344,6 +1352,16 @@
             <div class="role-selector">
               <button type="button" class="role-btn" id="btn-mode-ar" onclick="selectPlayMode('ar')">&#128247; Kamera AR (Webcam)</button>
               <button type="button" class="role-btn active" id="btn-mode-touch" onclick="selectPlayMode('touch')">&#128377;&#65039; Tanpa Kamera (Default)</button>
+            </div>
+          </div>
+
+          <!-- Panduan 3 Langkah Ringkas Untuk Murid -->
+          <div style="background: rgba(15, 23, 42, 0.7); border: 1px solid rgba(56, 189, 248, 0.35); border-radius: 12px; padding: 10px 14px; margin-bottom: 16px; text-align: left;">
+            <div style="font-size: 0.8rem; font-weight: 800; color: #38bdf8; margin-bottom: 6px; letter-spacing: 0.5px;">üìñ CARA BERMAIN (3 LANGKAH RINGKAS):</div>
+            <div style="display: flex; flex-direction: column; gap: 5px; font-size: 0.77rem; color: #cbd5e1; line-height: 1.35;">
+              <div>1Ô∏è‚É£ <b>Baca Soalan</b> bersama ahli kumpulan dahulu.</div>
+              <div>2Ô∏è‚É£ <b>Tekan Buzzer</b> sepantas mungkin apabila tahu jawapan.</div>
+              <div>3Ô∏è‚É£ <b>Pilih Jawapan (A, B, C atau D)</b> di skrin sebelum masa tamat!</div>
             </div>
           </div>
 
@@ -2775,6 +2793,23 @@ const ALL_QUESTIONS_PART_B = [{"question": "Haziq menaiki kereta dari Kuala Lump
     // ==========================================
     // 6. KEMAS KINI UI BERDASARKAN DATA CLOUD
     // ==========================================
+    let _lastScoreP1 = -1;
+    let _lastScoreP2 = -1;
+
+    function animateScoreChange(elId, delta) {
+      const el = document.getElementById(elId);
+      if (!el) return;
+      el.style.transition = 'transform 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275), color 0.25s, text-shadow 0.25s';
+      el.style.transform = 'scale(1.4)';
+      el.style.color = '#05ffa1';
+      el.style.textShadow = '0 0 20px #05ffa1';
+      setTimeout(() => {
+        el.style.transform = 'scale(1)';
+        el.style.color = '';
+        el.style.textShadow = '';
+      }, 700);
+    }
+
     function updateGameUI(state) {
       currentGameState = state;
       const qIndex = state.qIndex || 0;
@@ -2793,6 +2828,16 @@ const ALL_QUESTIONS_PART_B = [{"question": "Haziq menaiki kereta dari Kuala Lump
       const name2 = (state.names && state.names.player2) || "Kumpulan 2";
       const score1 = (state.scores && state.scores.player1) || 0;
       const score2 = (state.scores && state.scores.player2) || 0;
+
+      if (_lastScoreP1 >= 0 && score1 > _lastScoreP1) {
+        animateScoreChange('score-p1', score1 - _lastScoreP1);
+      }
+      _lastScoreP1 = score1;
+
+      if (_lastScoreP2 >= 0 && score2 > _lastScoreP2) {
+        animateScoreChange('score-p2', score2 - _lastScoreP2);
+      }
+      _lastScoreP2 = score2;
 
       document.getElementById('name-p1').innerText = name1;
       document.getElementById('name-p2').innerText = name2;
@@ -2984,7 +3029,11 @@ const ALL_QUESTIONS_PART_B = [{"question": "Haziq menaiki kereta dari Kuala Lump
         }
 
         if (!isLocked) {
-          banner.style.display = 'none';
+          banner.className = 'buzzer-alert waiting-buzz';
+          banner.style.display = 'block';
+          banner.innerHTML = isKbat
+            ? `üåü <b>LANGKAH 1:</b> Baca Soalan KBAT (+20 Mata) ‚û°Ô∏è <b>TEKAN GOLDEN BUZZER</b> Apabila Tahu Jawapan!`
+            : `üîî <b>LANGKAH 1:</b> Baca Soalan (+10 Mata) ‚û°Ô∏è <b>TEKAN BUZZER</b> Secepat Mungkin Untuk Menjawab!`;
           timerBox.style.display = 'none';
           stopCountdownTimer();
           disableAnswerButtons(true); // Belum ada sesiapa tekan buzzer, butang ditutup!
@@ -2998,20 +3047,20 @@ const ALL_QUESTIONS_PART_B = [{"question": "Haziq menaiki kereta dari Kuala Lump
           banner.className = 'buzzer-alert you-buzzed';
           banner.style.display = 'block';
           if (state.isSteal) {
-            banner.innerHTML = `üîÑ <b>PELUANG KUMPULAN ANDA (STEAL)!</b> Lawan salah, pilih jawapan anda sekarang! (+${isKbat ? 20 : 10} mata)`;
+            banner.innerHTML = `‚ú® <b>LANGKAH 2 (STEAL):</b> Lawan salah! Kumpulan anda dapat peluang ‚Äî <b>PILIH JAWAPAN A, B, C ATAU D DI BAWAH SEKARANG!</b> (+${isKbat ? 20 : 10} mata)`;
           } else {
-            banner.innerText = isKbat 
-              ? `üåü ANDA TEKAN GOLDEN BUZZER! JAWAB SEBELUM MASA TAMAT (15s)! (+20 MATA)`
-              : `üî¥ ANDA TEKAN RED BUZZER! JAWAB SEBELUM MASA TAMAT (5s)! (+10 MATA)`;
+            banner.innerHTML = isKbat 
+              ? `üåü <b>LANGKAH 2:</b> Anda dapat Golden Buzzer! <b>SILA PILIH JAWAPAN DI BAWAH SEKARANG!</b> (Masa: 15s | +20 Mata)`
+              : `üî¥ <b>LANGKAH 2:</b> Anda berjaya tekan buzzer! <b>SILA PILIH JAWAPAN DI BAWAH SEKARANG!</b> (Masa: 5s | +10 Mata)`;
           }
           disableAnswerButtons(false); // Buka butang jawapan untuk kumpulan ini!
         } else {
           banner.className = 'buzzer-alert opponent-buzzed';
           banner.style.display = 'block';
           if (state.isSteal) {
-            banner.innerHTML = `üîí <b>GILIRAN ${winnerName.toUpperCase()} MENJAWAB (STEAL)!</b> Sila tunggu...`;
+            banner.innerHTML = `üîí <b>GILIRAN ${winnerName.toUpperCase()} (STEAL)!</b> Mereka sedang memilih jawapan...`;
           } else {
-            banner.innerText = `üîí ${winnerName.toUpperCase()} TEKAN DAHULU! TUNGGU MASA TAMAT...`;
+            banner.innerHTML = `üîí <b>${winnerName.toUpperCase()} TEKAN DAHULU!</b> Tunggu mereka menjawab (Peluang steal jika mereka salah)...`;
           }
           disableAnswerButtons(true); // Lawan terkunci!
         }
@@ -3190,47 +3239,58 @@ const ALL_QUESTIONS_PART_B = [{"question": "Haziq menaiki kereta dari Kuala Lump
         console.error("Ralat rekod soalan salah:", err);
       }
 
-      // Potong markah kumpulan yang gagal
-      if (roomRef && hasRealFirebase) {
-        roomRef.child(`meta/scores/${failedRole}`).transaction(s => Math.max(0, (s || 0) - penalty));
-      } else if (currentGameState) {
-        currentGameState.scores[failedRole] = Math.max(0, (currentGameState.scores[failedRole] || 0) - penalty);
-      }
-
       const isAlreadySteal = !!(currentGameState && currentGameState.isSteal);
       const opponentRole = (failedRole === 'player1') ? 'player2' : 'player1';
 
       if (!isKbat && !isAlreadySteal) {
         // PELUANG KEPADA KUMPULAN SETERUSNYA (STEAL)! [Masa Steal: 10 Saat Penuh]
-        const updateData = {
-          lockedBy: opponentRole,
-          lockedAt: Date.now(),
-          isSteal: true,
-          wrongChoice: (chosenIndex !== null) ? chosenIndex : null,
-          showAnswer: false
-        };
-
         if (roomRef && hasRealFirebase) {
-          roomRef.child('meta').update(updateData);
+          roomRef.child('meta').transaction((meta) => {
+            if (meta) {
+              if (!meta.scores) meta.scores = { player1: 0, player2: 0 };
+              meta.scores[failedRole] = Math.max(0, (meta.scores[failedRole] || 0) - penalty);
+              meta.lockedBy = opponentRole;
+              meta.lockedAt = Date.now();
+              meta.isSteal = true;
+              meta.wrongChoice = (chosenIndex !== null) ? chosenIndex : null;
+              meta.showAnswer = false;
+            }
+            return meta;
+          });
         } else if (currentGameState) {
-          Object.assign(currentGameState, updateData);
+          if (!currentGameState.scores) currentGameState.scores = { player1: 0, player2: 0 };
+          currentGameState.scores[failedRole] = Math.max(0, (currentGameState.scores[failedRole] || 0) - penalty);
+          currentGameState.lockedBy = opponentRole;
+          currentGameState.lockedAt = Date.now();
+          currentGameState.isSteal = true;
+          currentGameState.wrongChoice = (chosenIndex !== null) ? chosenIndex : null;
+          currentGameState.showAnswer = false;
           updateGameUI(currentGameState);
         }
       } else {
         // SOALAN KBAT SALAH/TAMAT MASA ATAU KEDUA-DUA KUMPULAN GAGAL!
         // TUNJUKKAN JAWAPAN BETUL DENGAN HIJAU DAN TERUSKAN KE SOALAN SETERUSNYA
-        const updateData = {
-          lockedBy: null,
-          lockedAt: null,
-          isSteal: false,
-          wrongChoice: null,
-          showAnswer: true
-        };
-
         if (roomRef && hasRealFirebase) {
-          roomRef.child('meta').update(updateData);
+          roomRef.child('meta').transaction((meta) => {
+            if (meta) {
+              if (!meta.scores) meta.scores = { player1: 0, player2: 0 };
+              meta.scores[failedRole] = Math.max(0, (meta.scores[failedRole] || 0) - penalty);
+              meta.lockedBy = null;
+              meta.lockedAt = null;
+              meta.isSteal = false;
+              meta.wrongChoice = null;
+              meta.showAnswer = true;
+            }
+            return meta;
+          });
         } else if (currentGameState) {
-          Object.assign(currentGameState, updateData);
+          if (!currentGameState.scores) currentGameState.scores = { player1: 0, player2: 0 };
+          currentGameState.scores[failedRole] = Math.max(0, (currentGameState.scores[failedRole] || 0) - penalty);
+          currentGameState.lockedBy = null;
+          currentGameState.lockedAt = null;
+          currentGameState.isSteal = false;
+          currentGameState.wrongChoice = null;
+          currentGameState.showAnswer = true;
           updateGameUI(currentGameState);
         }
 
@@ -3383,9 +3443,23 @@ const ALL_QUESTIONS_PART_B = [{"question": "Haziq menaiki kereta dari Kuala Lump
         // JAWAPAN TEPAT!
         soundCorrect();
         chosenBtn.classList.add('correct');
+        const banner = document.getElementById('buzzer-banner');
+        if (banner) {
+          banner.className = 'buzzer-alert you-buzzed';
+          banner.style.display = 'block';
+          banner.innerHTML = `üéâ <b>TAHNIAH! JAWAPAN TEPAT!</b> (+${pointsGain} Mata Ditambah!)`;
+        }
+
         if (roomRef && hasRealFirebase) {
-          roomRef.child(`meta/scores/${myRole}`).transaction(s => (s || 0) + pointsGain);
+          roomRef.child('meta').transaction((meta) => {
+            if (meta) {
+              if (!meta.scores) meta.scores = { player1: 0, player2: 0 };
+              meta.scores[myRole] = (meta.scores[myRole] || 0) + pointsGain;
+            }
+            return meta;
+          });
         } else {
+          if (!currentGameState.scores) currentGameState.scores = { player1: 0, player2: 0 };
           currentGameState.scores[myRole] = (currentGameState.scores[myRole] || 0) + pointsGain;
           updateGameUI(currentGameState);
         }
